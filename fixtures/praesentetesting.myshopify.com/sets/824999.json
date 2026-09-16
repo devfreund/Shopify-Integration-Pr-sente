@@ -1,0 +1,11 @@
+{
+  "parent_sku": "824999",
+  "title": "Präsent fehlendes Kind (Qualitätstor)",
+  "active": true,
+  "html": "<p>Dieses Fixture muss DRAFT bleiben, weil SKU 999999 nicht auflösbar ist.</p>",
+  "kennzeichnung_html": "1.0 x False Bay Slow Chenin Blanc Zutatenverzeichnis Trauben, Sulfite\n1.0 x fehlendes Kind 999999",
+  "components": [
+    { "sku": "605091", "qty": 1 },
+    { "sku": "999999", "qty": 1 }
+  ]
+}

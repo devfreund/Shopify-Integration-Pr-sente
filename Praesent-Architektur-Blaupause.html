@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Präsent-Produkte im Vinsecco-Shop – Technische Erklärung und Blaupause</title>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; color: #1a1a1a; margin: 2.2cm 2cm; }
+    h1 { font-size: 22pt; margin: 0 0 8pt 0; color: #111; }
+    h2 { font-size: 15pt; margin: 22pt 0 8pt 0; border-bottom: 1px solid #ccc; padding-bottom: 4pt; }
+    h3 { font-size: 12.5pt; margin: 16pt 0 6pt 0; }
+    p, li { margin: 0 0 8pt 0; }
+    .meta { color: #555; font-size: 10.5pt; margin-bottom: 18pt; }
+    .kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 9.5pt; color: #555; margin-bottom: 4pt; }
+    table { border-collapse: collapse; width: 100%; margin: 8pt 0 14pt 0; font-size: 10.5pt; }
+    th, td { border: 1px solid #ccc; padding: 6pt 8pt; vertical-align: top; text-align: left; }
+    th { background: #f2f2f2; font-weight: 600; }
+    code { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; }
+    .box { border: 1px solid #ccc; padding: 10pt 12pt; margin: 10pt 0 14pt 0; background: #fafafa; }
+    .note { font-size: 10pt; color: #444; }
+    ul { margin-top: 4pt; }
+  </style>
+</head>
+<body>
+
+<p class="kicker">Vinsecco Freund · Technisches Architekturpapier</p>
+<h1>Präsent-Produkte im Online-Shop</h1>
+<p class="meta">
+  Technische Erklärung des Ist-Zustands und Blaupause für andere Webshops<br />
+  Stand: 8. September 2026 · Bezugssystem: Shopify-Shop vinsecco-freund.de und Toolkit-Repository Vinsecco
+</p>
+
+<h2>1. Zweck und Leserkreis</h2>
+<p>
+  Dieses Papier fasst zusammen, wie die Produktkategorie <strong>Präsente</strong> (Geschenksets aus Wein, Feinkost und Zubehör) im Vinsecco-Shopify-Shop heute funktioniert, welche Daten wo liegen und warum Beschreibungstext und Nährwert-Reiter auseinanderlaufen können. Der zweite Teil beschreibt eine übertragbare Zielarchitektur für Shops, die Präsente neu einführen.
+</p>
+<p>
+  Adressaten sind Produktverantwortliche, Shop-Entwickler und Integratoren zwischen ERP und Storefront.
+</p>
+
+<h2>2. Kurzfassung</h2>
+<div class="box">
+  <p>Ein Präsent ist ein <strong>Elternartikel</strong> (das Set, das der Kunde kauft) plus einer <strong>Stückliste</strong> aus <strong>Kind-Artikeln</strong> (Wein, Sauce, Gewürz, Schale). Der Nährwert-Reiter listet die strukturierten Stammdaten der Kinder nacheinander. Die fette Inhaltsliste auf der Produktdetailseite ist dagegen händisch gepflegter Freitext am Parent und wird nicht aus der Stückliste erzeugt.</p>
+  <p style="margin-bottom:0"><strong>Regel für die Zielarchitektur:</strong> Nährwerte und Legalangaben nie auf das Set kopieren. Single Source of Truth bleibt der Kind-Artikel. Der Parent speichert nur Verweise und Mengen.</p>
+</div>
+
+<h2>3. Begriffe</h2>
+<table>
+  <tr><th>Begriff</th><th>Bedeutung im Vinsecco-Kontext</th></tr>
+  <tr><td>Parent / Set</td><td>Verkaufbarer Präsent-Artikel, z. B. „Präsent African Spice-Box“, SKU 824006, Shopify <code>product_type = Präsent</code>.</td></tr>
+  <tr><td>Kind / Komponente</td><td>Eigenständiger Shop-Artikel (Wein, Feinkost, Zubehör) mit eigenen Metafields.</td></tr>
+  <tr><td>Stückliste (BOM)</td><td>ERP-Rezeptur: welches Kind in welcher Menge in welchem Parent steckt. Tabelle <code>KHKArtikelStueckliste</code>.</td></tr>
+  <tr><td><code>body_html</code></td><td>Shopify-Produktbeschreibung des Parents. Enthält Marketingtext und die fette Inhaltsliste.</td></tr>
+  <tr><td>Metafields</td><td>Strukturierte Felder am Kind, z. B. <code>custom.jahrgang</code>, <code>custom.brennwert_kcal</code>, <code>custom.zutaten</code>.</td></tr>
+</table>
+
+<h2>4. Ist-Zustand im Vinsecco-Shop</h2>
+
+<h3>4.1 Beispiel African Spice-Box</h3>
+<p>
+  Die Produktdetailseite teilt sich in zwei Schichten, die im Shop unabhängig befüllt werden:
+</p>
+<table>
+  <tr>
+    <th>Fläche</th>
+    <th>Was der Kunde sieht</th>
+    <th>Datenquelle</th>
+  </tr>
+  <tr>
+    <td>Hero / Beschreibung</td>
+    <td>Titel, Preis, Marketingtext, fette Liste der Karton-Inhalte, Warenkorb</td>
+    <td>Shopify-Produktfelder des Parents, vor allem <code>body_html</code></td>
+  </tr>
+  <tr>
+    <td>Reiter „Präsente – Schenken mit Genuß“</td>
+    <td>Allgemeiner Text über Genussgeschenke</td>
+    <td>Statischer Theme-Block, identisch auf allen Präsent-Seiten</td>
+  </tr>
+  <tr>
+    <td>Reiter „Nährwertangaben, Herkunft, etc.“</td>
+    <td>Pro Kind ein Spezifikationsblock (Wein- oder Food-Vorlage)</td>
+    <td>Metafields der verknüpften Kind-Produkte</td>
+  </tr>
+</table>
+
+<h3>4.2 Die Inhaltsliste ist Freitext am Parent</h3>
+<p>
+  Die Zeilen „1 Flasche Windswept Sauvignon Blanc (False Bay) – 0,75 l“ usw. sind <strong>nicht</strong> zur Laufzeit aus der Stückliste gebaut. Sie stehen als HTML in der Beschreibung des Parents, etwa:
+</p>
+<p class="note">
+  Absatz 1: Marketingtext („Südafrika für Genießer …“)<br />
+  Absatz 2: Überschrift „Im naturfarbenen Präsentkarton.“<br />
+  Absatz 3: Positionen fett, mit Zeilenumbruch: Menge + Gebinde + Name + Marke in Klammern + Füllmenge
+</p>
+<p>
+  Das Theme gibt <code>product.description</code> aus. Im Vinsecco-Toolkit gibt es keine Funktion, die diese Liste aus Kind-Artikeln erzeugt. Die vorhandene <code>body_html</code>-Erzeugung gilt nur für Wein und Food (Charakteristik plus Gastro-Empfehlung).
+</p>
+
+<h3>4.3 Die Nährwerte hängen an den Kindern</h3>
+<p>
+  Der zweite Reiter iteriert über die Kind-Produkte und verwendet dieselbe Feldvorlage wie die Wein- bzw. Food-Produktdetailseite. Die Werte kommen aus Shopify-Metafields, die das Toolkit aus ERP/CSV auf die Kinder schreibt. Beispiel False Bay Slow Chenin Blanc (SKU 605091):
+</p>
+<table>
+  <tr><th>Anzeige im Shop</th><th>Shopify-Metafield</th><th>CSV-/ERP-Feld</th><th>Sync-Funktion</th></tr>
+  <tr><td>Jahrgang</td><td><code>custom.jahrgang</code></td><td><code>JJahrgang</code></td><td><code>update_ingredient_metafields</code></td></tr>
+  <tr><td>Alkohol in Vol%</td><td><code>custom.alkohol_vol</code></td><td><code>JAlkGehaltLabel</code></td><td><code>update_ingredient_metafields</code></td></tr>
+  <tr><td>Restzucker (g/L)</td><td><code>custom.restzucker</code></td><td><code>JZucker</code></td><td><code>update_ingredient_metafields</code></td></tr>
+  <tr><td>Säure (g/L)</td><td><code>custom.saure</code></td><td><code>JSaeure</code></td><td><code>_update_metafield_group</code></td></tr>
+  <tr><td>Brennwert kcal / kJ</td><td><code>custom.brennwert_kcal</code> / <code>_kj</code></td><td><code>USER_NWEnergiekcal</code> / <code>kj</code></td><td><code>update_nutrition_metafields</code></td></tr>
+  <tr><td>Kohlenhydrate / Zucker</td><td><code>custom.kohlenhydrate</code> / <code>davon_zucker</code></td><td><code>USER_NWKohlenhydrate</code> / <code>NWdavonZucker</code></td><td><code>update_nutrition_metafields</code></td></tr>
+  <tr><td>Zutaten</td><td><code>custom.zutaten</code></td><td><code>USER_JInhalt</code></td><td><code>update_ingredient_metafields</code></td></tr>
+  <tr><td>Anbaugebiet</td><td><code>custom.region</code></td><td><code>WRegion</code></td><td><code>update_basic_info_metafields</code></td></tr>
+  <tr><td>Qualitätsstufe</td><td><code>custom.qualitatsstufe</code></td><td><code>WQualitaetsstufe</code></td><td><code>_update_metafield_group</code></td></tr>
+  <tr><td>Rebsorten</td><td><code>custom.rebsorten</code></td><td><code>JRebsorten</code></td><td><code>_update_metafield_group</code></td></tr>
+  <tr><td>Hersteller</td><td><code>custom.hersteller</code></td><td><code>WName</code></td><td><code>update_basic_info_metafields</code></td></tr>
+  <tr><td>Inverkehrbringer</td><td><code>custom.in_verkehr_bringer</code></td><td><code>USER_InVerkehrBringer</code></td><td><code>_update_metafield_group</code></td></tr>
+  <tr><td>Herkunftsland</td><td><code>custom.herkunftsland</code></td><td><code>WLand</code></td><td><code>update_basic_info_metafields</code></td></tr>
+  <tr><td>Flascheninhalt</td><td><code>custom.flascheninhalt</code></td><td><code>USER_Flascheninhalt</code></td><td><code>update_basic_info_metafields</code></td></tr>
+</table>
+<p>
+  Mapping: Datei <code>metafield_mapping.py</code>. Schreiben: <code>shopify_api_client.py</code>, Kernmethode <code>_update_metafield_group</code>. Kinder ohne Nährwerte (z. B. Keramikschale) erscheinen im Reiter nicht.
+</p>
+
+<h3>4.4 Die Stückliste im ERP</h3>
+<p>
+  Im Warenwirtschaftssystem (Sage/KHK, Mandant 2) ist ein Präsent ein Stücklistenartikel. Die Tabelle <code>KHKArtikelStueckliste</code> speichert je Zeile:
+</p>
+<table>
+  <tr><th>Feld</th><th>Inhalt</th></tr>
+  <tr><td><code>Stueckliste</code></td><td>Artikelnummer des Parents (z. B. 824006)</td></tr>
+  <tr><td><code>Element</code></td><td>Artikelnummer des Kindes (Wein, Food, Zubehör)</td></tr>
+  <tr><td><code>Menge</code></td><td>Anzahl im Karton (im Shop oft als „1.0 x …“ sichtbar)</td></tr>
+</table>
+<p>
+  Die Stückliste enthält selbst keine Nährwerte. Die hängen am Kind in <code>KHKArtikel</code> / <code>KHKArtikelVarianten</code>. Die Query <code>SQL_CoreData_Sets_Complete</code> explodiert die BOM: eine Zeile pro Kind, mit Menge plus Stammdaten des Kindes. Filter am Parent: <code>Stuecklistentyp = 1</code>, Verkaufsartikel, aktiv, Artikelgruppe <code>80100</code> / <code>880</code> bzw. <code>800</code>.
+</p>
+<p>
+  Präsent-SKUs beginnen mit 8 und werden aus den Wein-Exports bewusst ausgeschlossen (<code>LEFT(Artikelnummer,1) NOT IN ('7','8')</code>). Laden der Daten: <code>Create_BasicDataSets_Complete()</code> (Eltern) und <code>Create_CoreDataSets_Complete()</code> (explodierte Stückliste). Beide Funktionen schreiben derzeit nicht nach Shopify.
+</p>
+
+<h3>4.5 Zwei Quellen, deshalb Drift</h3>
+<p>
+  An der African Spice-Box ist der Bruch sichtbar:
+</p>
+<table>
+  <tr><th>Stelle</th><th>Quelle</th><th>Wein</th></tr>
+  <tr><td>Fette Inhaltsliste</td><td>Freitext <code>body_html</code> am Parent</td><td>Windswept Sauvignon Blanc (SKU 605090, im Shop Draft)</td></tr>
+  <tr><td>Nährwert-Reiter</td><td>Verknüpfte Kind-Produkte</td><td>Slow Chenin Blanc (SKU 605091, veröffentlicht, Metafields aus Wein.csv)</td></tr>
+</table>
+<p>
+  Zusätzlich existiert ein zweites Reiter-Muster: „Präsent Schmaus im Schneckentempo“ zeigt zusammengeklebten Legaltext aus der Stückliste („1.0 x False Bay Slow Chenin Blanc Zutatenverzeichnis …“). Damit gibt es im Shop zwei Arten, Kind-Daten darzustellen. Das erhöht die Abweichungsgefahr.
+</p>
+<p>
+  Präsent-Eltern stehen nicht in <code>Wein.csv</code> / <code>Food.csv</code> und erscheinen in <code>shop_only_skus.txt</code>: sie existieren im Shop, laufen aber nicht durch den Metafield-Sync der Einzelartikel.
+</p>
+
+<h2>5. Systemgrenzen</h2>
+<table>
+  <tr><th>Schicht</th><th>Was sie leistet</th><th>Was sie nicht leistet</th></tr>
+  <tr>
+    <td>ERP (WKF / KHK)</td><td>Parent, Stückliste, Kind-Stammdaten, Nährwerte, Legalangaben</td><td>Storefront-Rendering</td>
+  </tr>
+  <tr>
+    <td>Vinsecco-Toolkit</td><td>CSV-Export, Metafield-Mapping, Sync auf Wein/Food-Kinder</td><td>Parent anlegen, Referenzen setzen, Inhaltsliste erzeugen</td>
+  </tr>
+  <tr>
+    <td>Shopify Admin / Theme</td><td>Parent-Produkt, händische Beschreibung, Tabs, Loop über Kinder</td><td>ERP als führendes System ersetzen</td>
+  </tr>
+</table>
+<p class="note">
+  Das Theme-Liquid liegt nicht im Vinsecco-Repository. Die Storefront-Aussagen stammen aus den Live-Produktseiten, u. a. <code>/products/prasent-african-spice-box</code> und den Kind-PDPs.
+</p>
+
+<h2>6. Blaupause für andere Webshops</h2>
+<p>
+  Ziel: Präsente als erste Klasse im Sortiment einführen, ohne Nährwerte zu duplizieren und ohne Inhaltslisten von Hand zu pflegen. Die Blaupause ist shop-agnostisch; Shopify ist das Referenz-Backend, das Muster gilt ebenso für andere Shops mit Produkt-Metafeldern und Stücklisten.
+</p>
+
+<h3>6.1 Leitprinzipien</h3>
+<ul>
+  <li><strong>Parent verkauft, Kind erklärt.</strong> Preis, Bestand des Sets und Marketing gehören zum Parent. Spezifikation, Allergene und Herkunft gehören zum Kind.</li>
+  <li><strong>Eine maschinenlesbare Stückliste.</strong> Freitext darf Marketing sein, nie die einzige Quelle für Inhalt und Legalität.</li>
+  <li><strong>Referenzen statt Kopie.</strong> Ändert sich der Jahrgang eines Weins, aktualisiert der bestehende Kind-Sync alle Sets, die darauf zeigen.</li>
+  <li><strong>Zubehör ohne Nährwert weglassen.</strong> Schale, Löffel, Karton erscheinen in der Inhaltsliste, nicht im Nährwert-Reiter.</li>
+  <li><strong>Theme folgt einem Vertrag, nicht Einzelfällen.</strong> <code>product_type = Präsent</code> (oder gleichwertig) schaltet Layout und Tabs.</li>
+</ul>
+
+<h3>6.2 Datenmodell</h3>
+<table>
+  <tr><th>Objekt</th><th>Pflichtfelder</th><th>Hinweise</th></tr>
+  <tr>
+    <td>Parent-Produkt</td>
+    <td>SKU, Titel, Preis, Status, <code>product_type</code> Gift/Präsent, Marketingtext</td>
+    <td>Kein eigenes Nährwert-Metafield-Set</td>
+  </tr>
+  <tr>
+    <td>Komponentenverweis</td>
+    <td><code>custom.components</code> als Liste von Produktreferenzen</td>
+    <td>Reihenfolge = Anzeigereihenfolge im Reiter</td>
+  </tr>
+  <tr>
+    <td>Mengensatz</td>
+    <td><code>custom.component_qty</code> JSON: sku, qty, unit, label, show_nutrition</td>
+    <td>Erzeugt die Inhaltsliste („1 Flasche … 0,75 l“)</td>
+  </tr>
+  <tr>
+    <td>Kind-Produkt</td>
+    <td>Bestehende Nutrition-/Herkunfts-/Allergen-Metafields</td>
+    <td>Unverändert zum Einzelverkauf; Set konsumiert sie nur</td>
+  </tr>
+</table>
+<p>
+  Vorschlag für <code>component_qty</code>:
+</p>
+<p>
+  <code>[{"sku":"605091","qty":1,"unit":"Flasche","label":"Slow Chenin Blanc (False Bay)","size":"0,75 l","show_nutrition":true}]</code>
+</p>
+<p>
+  Die sichtbare Inhaltsliste wird aus diesem JSON gerendert oder beim Sync nach <code>body_html</code> geschrieben. Manuelles Nachpflegen der Liste entfällt.
+</p>
+
+<h3>6.3 Pipeline (ERP → Shop)</h3>
+<ol>
+  <li>Stückliste aus dem ERP lesen (Parent, Element, Menge), nur aktive Verkaufssets.</li>
+  <li>Jedes Element im Zielshop per SKU auflösen. Fehlt ein Kind, Set nicht veröffentlichen und Fehler loggen.</li>
+  <li>Parent anlegen oder aktualisieren (Titel, Preis, Typ, Tags, Status).</li>
+  <li>Produktreferenzen und Mengensatz schreiben.</li>
+  <li>Inhaltsliste aus dem Mengensatz erzeugen (Theme-seitig oder als generiertes HTML).</li>
+  <li>Kind-Metafields weiter über den bestehenden Artikel-Sync pflegen. Der Set-Job fasst sie nicht an.</li>
+</ol>
+<p>
+  Für Vinsecco heißt das konkret: <code>Create_CoreDataSets_Complete()</code> an einen Shopify-Writer hängen, der Parent-Upsert und <code>list.product_reference</code> übernimmt.
+</p>
+
+<h3>6.4 Theme-Vertrag</h3>
+<table>
+  <tr><th>Bedingung</th><th>Verhalten</th></tr>
+  <tr><td><code>product_type</code> ist Präsent / Gift / Set</td><td>PDP mit Inhaltsliste und zwei Reitern</td></tr>
+  <tr><td>Reiter 1</td><td>Shop-weiter redaktioneller Text (Schenken, Anlass) – nicht produktspezifisch</td></tr>
+  <tr><td>Reiter 2</td><td>Loop über <code>custom.components</code>; Wein-Partial oder Food-Partial je Kind-Typ</td></tr>
+  <tr><td><code>show_nutrition = false</code></td><td>Position nur in der Inhaltsliste, nicht im Reiter</td></tr>
+  <tr><td>Kind Draft oder fehlende Pflichtfelder</td><td>Parent nicht kaufbar oder Reiter mit Hinweis; kein stilles Vertauschen durch ein anderes Kind</td></tr>
+</table>
+<p>
+  Es darf nur <strong>ein</strong> Reiter-Muster geben: strukturierte Metafield-Blöcke der Kinder. Zusammengeklebter Legaltext aus der BOM ist höchstens Fallback für den Export, nicht für die Storefront.
+</p>
+
+<h3>6.5 Was portabel ist – und was nicht</h3>
+<table>
+  <tr><th>Portabel (in jeden Shop übertragbar)</th><th>Shop-spezifisch</th></tr>
+  <tr>
+    <td>Parent/Kind-Trennung, BOM, Produktreferenzen, Mengen-JSON, Theme-Loop, Kind-Metafields als Wahrheit</td>
+    <td>Feldnamen, gesetzliche Labels (LMIV, Weinrecht), Artikelgruppen 80100/880/800, statischer Reiter-1-Text, ERP-Tabellen KHK</td>
+  </tr>
+</table>
+<p>
+  Nicht portieren: Nährwerte auf das Set denormalisieren. Jahrgang, Restzucker und Zutaten laufen sonst sofort aus der Synchronität.
+</p>
+
+<h3>6.6 Einführung in einem Shop ohne Präsente</h3>
+<ol>
+  <li><strong>Kind-Basis prüfen.</strong> Wein- und Food-Artikel müssen bereits spezifikationsvollständig im Shop stehen (oder parallel angebunden werden).</li>
+  <li><strong>Metafield-Definitionen anlegen.</strong> <code>custom.components</code> (Liste Produktreferenz) und <code>custom.component_qty</code> (JSON).</li>
+  <li><strong>Produkttyp und Collection.</strong> Typ „Präsent“ plus automatische Collection über Typ oder Tag.</li>
+  <li><strong>Theme-Partials.</strong> Inhaltsliste, Gift-Tab, Nährwert-Loop; dieselben Partials wie auf der Kind-PDP wiederverwenden.</li>
+  <li><strong>Ein Pilot-Set.</strong> Ein Parent mit 3–5 bekannten Kindern, davon mindestens ein Artikel ohne Nährwert.</li>
+  <li><strong>Sync-Job.</strong> BOM → Referenzen → generierte Liste. Danach erst weitere Sets.</li>
+  <li><strong>Qualitätstor.</strong> Veröffentlichung nur, wenn alle referenzierten Kinder existieren, aktiv sind und die Pflicht-Metafields tragen.</li>
+</ol>
+
+<h3>6.7 Betriebsregeln</h3>
+<ul>
+  <li>Kind ersetzen (anderer Jahrgang, anderer Wein) nur über die Stückliste, nie durch Editieren der Beschreibung.</li>
+  <li>Parent-Bestand aus der schwächsten Komponente ableiten oder bewusst als eigenes Lager führen – beides ist zulässig, muss aber festliegen.</li>
+  <li>Rechtstexte (Allergene, Inverkehrbringer) immer vom Kind, nie vom Set-Freitext.</li>
+  <li>Wenn ein Kind unveröffentlicht ist, darf der Reiter nicht still auf ein anderes Produkt derselben Marke ausweichen.</li>
+</ul>
+
+<h2>7. Empfohlene nächste Schritte bei Vinsecco</h2>
+<table>
+  <tr><th>Lücke</th><th>Risiko</th><th>Maßnahme</th></tr>
+  <tr>
+    <td>Sets werden nicht aus der Stückliste nach Shopify geschrieben</td>
+    <td>Referenzen und Beschreibung laufen auseinander</td>
+    <td><code>Create_CoreDataSets_Complete()</code> an Parent-Upsert und Produktreferenzen koppeln</td>
+  </tr>
+  <tr>
+    <td>Inhaltsliste ist Freitext</td>
+    <td>Beworbener Inhalt ungleich Legal-Reiter</td>
+    <td>Liste aus <code>component_qty</code> erzeugen</td>
+  </tr>
+  <tr>
+    <td>Zwei Reiter-Formate im Shop</td>
+    <td>Uneinheitliche Darstellung, doppelte Pflege</td>
+    <td>Nur den Komponenten-Loop behalten</td>
+  </tr>
+  <tr>
+    <td>Spice-Box: Windswept in der Liste, Chenin Blanc im Reiter</td>
+    <td>Kunden- und Kennzeichnungsfehler</td>
+    <td>Referenzen gegen die Stückliste abgleichen; Draft-Kinder nicht still ersetzen</td>
+  </tr>
+</table>
+
+<h2>8. Schlussfolgerung</h2>
+<p>
+  Präsente sind im Vinsecco-Shop fachlich bereits Parent-plus-Kinder, technisch aber noch zwei Welten: eine redaktionelle Beschreibung und ein Metafield-Reiter auf Kind-Produkten. Die Stückliste im ERP ist die fehlende verbindende Quelle. Wer das Konzept auf andere Shops überträgt, sollte genau diese Verbindung zuerst bauen – Referenzen und Mengen maschinenlesbar, Nährwerte ausschließlich am Kind, Storefront als reiner Konsument.
+</p>
+<p class="note">
+  Dokument erzeugt aus der Code- und Storefront-Analyse des Vinsecco-Repositories, 8. September 2026.
+</p>
+
+</body>
+</html>

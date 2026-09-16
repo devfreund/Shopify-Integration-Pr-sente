@@ -1,0 +1,14 @@
+{
+  "parent_sku": "824006",
+  "title": "Präsent African Spice-Box",
+  "active": true,
+  "html": "<p>Südafrika für Genießer. Im naturfarbenen Präsentkarton.</p>",
+  "kennzeichnung_html": "1.0 x False Bay Slow Chenin Blanc Zutatenverzeichnis Trauben, Sulfite\n1.0 x Chutney / Sauce Zutatenverzeichnis …\n1.0 x Zwiebeln Zutatenverzeichnis …\n1.0 x Gewürz Zutatenverzeichnis …",
+  "components": [
+    { "sku": "605091", "qty": 1 },
+    { "sku": "734103", "qty": 1 },
+    { "sku": "732165", "qty": 1 },
+    { "sku": "735300", "qty": 1 },
+    { "sku": "820001", "qty": 1 }
+  ]
+}

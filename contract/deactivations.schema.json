@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devfreund/Shopify-Integration-Pr-sente/contract/deactivations.schema.json",
+  "title": "Deaktivierungen",
+  "description": "Eine Datei je Shop unter <shop-domain>/deactivations.json. Setzt die genannten Artikel im Shop auf Entwurf.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["sku", "role"],
+    "additionalProperties": true,
+    "properties": {
+      "sku": { "type": "string", "minLength": 1 },
+      "role": { "enum": ["parent", "child"] }
+    }
+  }
+}

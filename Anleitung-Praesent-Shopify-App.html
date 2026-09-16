@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Anleitung: Präsent-Integration als Shopify-App</title>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; color: #1a1a1a; margin: 2.1cm 2cm; }
+    h1 { font-size: 22pt; margin: 0 0 6pt 0; }
+    h2 { font-size: 14.5pt; margin: 20pt 0 8pt 0; border-bottom: 1px solid #ccc; padding-bottom: 3pt; page-break-after: avoid; }
+    h3 { font-size: 12pt; margin: 14pt 0 6pt 0; page-break-after: avoid; }
+    h4 { font-size: 11pt; margin: 10pt 0 4pt 0; }
+    p, li { margin: 0 0 7pt 0; }
+    .kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 9.5pt; color: #555; }
+    .meta { color: #555; font-size: 10.5pt; margin-bottom: 16pt; }
+    table { border-collapse: collapse; width: 100%; margin: 6pt 0 12pt 0; font-size: 10.5pt; }
+    th, td { border: 1px solid #ccc; padding: 5pt 7pt; vertical-align: top; text-align: left; }
+    th { background: #f2f2f2; }
+    code { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; }
+    pre { font-family: Consolas, "Courier New", monospace; font-size: 9pt; background: #f6f6f6; border: 1px solid #ddd; padding: 8pt 10pt; white-space: pre-wrap; }
+    .box { border: 1px solid #ccc; padding: 9pt 11pt; margin: 8pt 0 12pt 0; background: #fafafa; }
+    .role { font-weight: 700; }
+    .note { font-size: 10pt; color: #444; }
+    ul, ol { margin-top: 2pt; }
+  </style>
+</head>
+<body>
+
+<p class="kicker">Interne Anleitung · Entwickler und Kunde</p>
+<h1>Präsent-Verkauf in Shopify ohne Theme-Codebase</h1>
+<p class="meta">
+  Technische Anleitung: Sage-Stückliste → Shopify-App → App-Block auf der Produktdetailseite<br />
+  Stand: 16. September 2026 · Referenz: Vinsecco-Shop und geplante Übertragung auf weitere Händler
+</p>
+
+<div class="box">
+  <p><strong>Kern in einem Satz:</strong> Der Kunde pflegt Präsente in Sage (Elternartikel + Stückliste). Eine von uns betriebene Shopify-App schreibt Parent, Kinder und Verknüpfungen in den Shop. Ein App-Block im Theme-Editor zeigt Inhaltsliste und Nährwert-Reiter. Niemand braucht Zugriff auf den Theme-Quellcode des Händlers.</p>
+</div>
+
+<h2>1. Für wen dieses Dokument ist</h2>
+<table>
+  <tr><th>Rolle</th><th>Was sie tun muss</th><th>Was sie nicht tun muss</th></tr>
+  <tr>
+    <td class="role">Kunde / Händler</td>
+    <td>In Sage Sets und Stücklisten pflegen. App installieren. Im Theme-Editor den Präsent-Block auf die Produktseite ziehen. Produkttyp/Collection prüfen.</td>
+    <td>Kein HTML, kein Liquid, kein Mapping von Nährwerten, kein Git-Zugriff auf das Theme.</td>
+  </tr>
+  <tr>
+    <td class="role">Unsere Entwickler</td>
+    <td>Custom App bauen und hosten. Sage lesen. Shopify Admin API schreiben. Theme App Extension (Block) liefern. Metafield-Definitionen anlegen. Sync-Regeln und Qualitätstore umsetzen.</td>
+    <td>Theme des Kunden forken. Nährwerte auf das Set kopieren. Freitext-Inhaltslisten pflegen.</td>
+  </tr>
+</table>
+
+<h2>2. Fachmodell (gilt für Vinsecco und den Kunden gleich)</h2>
+<p>Ein Präsent ist kein einzelnes „fettes“ Produkt, sondern drei Dinge:</p>
+<ol>
+  <li><strong>Parent</strong> — das Set, das der Kunde kauft (SKU, Preis, Status, Marketing).</li>
+  <li><strong>Stückliste</strong> — welche Kinder in welcher Menge im Karton liegen.</li>
+  <li><strong>Kinder</strong> — eigene Shop-Artikel (Wein, Feinkost, Zubehör) mit eigenen Nährwerten, Herkunft, Allergenen.</li>
+</ol>
+<p>
+  Der Nährwert-Reiter listet die Kinder nacheinander. Zubehör ohne Spezifikation (Schale, Löffel) steht nur in der Inhaltsliste. Die Inhaltsliste darf nicht händisch vom Nährwert-Reiter abweichen — bei Vinsecco passiert das heute (Windswept in der Beschreibung, Chenin Blanc im Reiter). Genau das soll die App verhindern.
+</p>
+<p>
+  <strong>Regel:</strong> Parent verkauft. Kind erklärt. Nährwerte nie auf das Set kopieren.
+</p>
+
+<h2>3. Warum eine Shopify-App und kein Theme-Zugriff</h2>
+<p>
+  Beim Zielkunden haben wir keinen Zugriff auf deren Custom-Theme. Shopify-Webhooks allein reichen nicht: sie feuern, <em>nachdem</em> etwas im Shop passiert. Wir brauchen Sage → Shop.
+</p>
+<p>In Shopify können wir ohne Theme-Git trotzdem drei Dinge nutzen:</p>
+<table>
+  <tr><th>Mittel</th><th>Ort</th><th>Zweck</th></tr>
+  <tr><td>Custom data / Metafields</td><td>Admin → Einstellungen → Custom data</td><td>Stückliste maschinenlesbar am Parent speichern</td></tr>
+  <tr><td>Admin API</td><td>Custom App</td><td>Produkte und Metafields anlegen/ändern</td></tr>
+  <tr><td>Theme App Extension (App Block)</td><td>Theme-Editor „Anpassen“</td><td>Inhaltsliste und Reiter rendern, ohne Liquid des Shops zu ändern</td></tr>
+</table>
+<p>
+  Voraussetzung: Theme <strong>Online Store 2.0</strong> (App Blocks). Bei Vintage-Themes geht nur ein Notbehelf über „Custom Liquid“ — das wollen wir vermeiden.
+</p>
+
+<h2>4. Zielarchitektur</h2>
+<pre>Sage 100 / KHK
+  Parent-Artikel + KHKArtikelStueckliste (Element, Menge)
+           │
+           │  Pull (Job) oder Push (HTTP in unsere App)
+           ▼
+Integrations-App  (von uns gehostet)
+  - ChildUpserted  → Kind + Metafields
+  - BomChanged     → Parent + Referenzen + Mengen
+  - Deactivated    → Draft / unveröffentlicht
+           │
+           │  Shopify Admin API
+           ▼
+Shopify-Shop des Kunden
+  Parent-Produkt (type Präsent)
+  Kinder-Produkte (Wein/Food)
+  Metafield custom.components = Liste Produktverweise
+  Metafield custom.component_qty = JSON (sku, qty, unit, label, show_nutrition)
+           │
+           ▼
+Theme App Block auf der PDP
+  Inhaltsliste aus component_qty
+  Reiter 1: redaktioneller Text (Block-Setting)
+  Reiter 2: Loop über components, Wein- oder Food-Partial des Kindes</pre>
+
+<p>
+  Die App spricht intern ein shop-neutrales Modell. Der Shopify-Adapter ist austauschbar. Sage und Stücklisten-Logik bleiben der Kern.
+</p>
+
+<h2>5. Technisches Vorgehen — Entwickler</h2>
+
+<h3>5.1 App-Typ und Rechte</h3>
+<p>
+  Für den einen Händler: <strong>Custom App</strong> (Dev Dashboard, Installation nur auf dessen Shop). Kein App Store nötig.
+</p>
+<p>Minimale Admin-API-Scopes:</p>
+<ul>
+  <li><code>read_products</code> / <code>write_products</code></li>
+  <li><code>read_inventory</code> / <code>write_inventory</code> (falls Set-Bestand mitgezogen wird)</li>
+  <li><code>read_metaobjects</code> / <code>write_metaobjects</code> nur falls später Metaobjects statt JSON</li>
+  <li>Metafields: über Produkte; ggf. <code>read_metafield_definitions</code> / <code>write_metafield_definitions</code></li>
+</ul>
+<p>
+  Theme App Extension separat im gleichen App-Projekt (Shopify CLI: App + Extension). Der Block wird nach Install im Theme-Editor sichtbar.
+</p>
+
+<h3>5.2 Custom Data einmalig anlegen</h3>
+<p>Die App soll das beim ersten Install selbst anlegen (nicht der Kunde per Hand, außer als Fallback):</p>
+<table>
+  <tr><th>Metafield (Namespace.key)</th><th>Owner</th><th>Typ</th><th>Inhalt</th></tr>
+  <tr><td><code>custom.components</code></td><td>Product (Parent)</td><td><code>list.product_reference</code></td><td>Kind-Produkte in Anzeigereihenfolge</td></tr>
+  <tr><td><code>custom.component_qty</code></td><td>Product (Parent)</td><td><code>json</code></td><td>Menge, Einheit, Label, Nährwert ja/nein</td></tr>
+  <tr><td>bestehende Kind-Felder</td><td>Product (Kind)</td><td>wie Vinsecco-Mapping</td><td>jahrgang, alkohol_vol, brennwert_*, zutaten, herkunftsland, …</td></tr>
+</table>
+<p>Beispiel <code>custom.component_qty</code>:</p>
+<pre>[
+  {
+    "sku": "605091",
+    "qty": 1,
+    "unit": "Flasche",
+    "label": "Slow Chenin Blanc (False Bay)",
+    "size": "0,75 l",
+    "show_nutrition": true
+  },
+  {
+    "sku": "820001",
+    "qty": 1,
+    "unit": "Stück",
+    "label": "mintgrüne Keramikschale",
+    "show_nutrition": false
+  }
+]</pre>
+<p>
+  <code>label</code> und <code>size</code> kommen aus Sage-Stammdaten des Kindes (Bezeichnung, Flascheninhalt, Gewicht), nicht aus Freitext am Parent.
+</p>
+
+<h3>5.3 Zwei Sync-Schienen</h3>
+<table>
+  <tr><th>Schiene</th><th>Trigger</th><th>Shopify-Aktion</th></tr>
+  <tr><td>Artikel-Sync</td><td>Kind in Sage angelegt/geändert</td><td>Produkt upserten, Nährwert-/Herkunfts-Metafields schreiben</td></tr>
+  <tr><td>Set-Sync</td><td>Stückliste am Parent geändert</td><td>Parent upserten, components + component_qty schreiben, Inhaltsliste ableiten, Status setzen</td></tr>
+</table>
+<p>
+  Ein neuer Jahrgang am Wein braucht kein neues Set. Artikel-Sync reicht; alle Parents, die auf das Kind zeigen, zeigen automatisch neue Werte im App-Block.
+</p>
+
+<h3>5.4 Ereignismodell</h3>
+<table>
+  <tr><th>Ereignis</th><th>Wann</th><th>Payload (kanonisch, ohne HTML)</th></tr>
+  <tr><td><code>ChildUpserted</code></td><td>Wein/Food/Zubehör gespeichert</td><td>sku, titel, typ, metafield-map</td></tr>
+  <tr><td><code>BomChanged</code></td><td>Stückliste gespeichert</td><td>parent_sku, titel, active, components[{sku, qty}]</td></tr>
+  <tr><td><code>ArticleDeactivated</code></td><td>Artikel inaktiv / nicht mehr Online</td><td>sku, rolle parent|child</td></tr>
+</table>
+<p>
+  Auslösung zuerst als <strong>geplanter Pull</strong> aus Sage (robust, wie Vinsecco-SQL). Push (Sage speichert → HTTP POST an die App) später als Optimierung. Beides verarbeitet dieselben drei Ereignisse. Idempotenz über SKU: zweimal derselbe Hook = gleiches Shop-Ergebnis.
+</p>
+
+<h3>5.5 Verarbeitungsreihenfolge (verbindlich)</h3>
+<ol>
+  <li>Kinder per SKU in Shopify suchen oder anlegen.</li>
+  <li>Kind-Metafields schreiben (Mapping analog <code>metafield_mapping.py</code>).</li>
+  <li>Pflichtfelder je Typ prüfen (Wein: Alkohol, Herkunft, Füllmenge, Sulfite, Inverkehrbringer; Food: Nährwerte, Zutaten wo gesetzlich nötig).</li>
+  <li>Parent anlegen/updaten: Titel, SKU, Preis falls aus Sage, <code>product_type = Präsent</code>, Tag <code>Präsent</code>.</li>
+  <li><code>custom.components</code> und <code>custom.component_qty</code> schreiben. Reihenfolge = Stücklistenreihenfolge.</li>
+  <li>Parent nur auf <strong>active</strong> setzen, wenn jedes Kind existiert und jedes <code>show_nutrition: true</code>-Kind spezifikationsvollständig ist. Sonst Draft und Fehlerlog.</li>
+</ol>
+<p>
+  Fehlt ein Kind oder ist es Draft: Parent bleibt unveröffentlicht. <strong>Kein stilles Ersetzen</strong> durch ein ähnliches Produkt derselben Marke (Vinsecco-Fehlerbild).
+</p>
+
+<h3>5.6 Sage-Anbindung (technisch)</h3>
+<p>Quelle wie bei Vinsecco, Mandant und Online-Flag analog beim Kunden klären:</p>
+<ul>
+  <li>Eltern: Artikel mit Stücklistentyp, Artikelgruppe Set (bei Vinsecco 80100 / 880 / 800, SKU oft 8…).</li>
+  <li>BOM: <code>KHKArtikelStueckliste.Stueckliste</code> = Parent-SKU, <code>Element</code> = Kind-SKU, <code>Menge</code>.</li>
+  <li>Kinder: dieselben Stammdaten-Queries wie Wein/Food (Nährwerte am Kind, nicht am Set).</li>
+</ul>
+<p>
+  Query-Vorlage existiert bereits: <code>SQL_CoreData_Sets_Complete</code> / <code>Create_CoreDataSets_Complete()</code>. Heute schreibt sie nichts nach Shopify. Die App ist der fehlende Consumer.
+</p>
+<p>
+  Erkennung „ist Set“: Stückliste vorhanden <strong>und</strong> Artikelgruppe/Typ Set — nicht nur SKU-Prefix 8, weil der nächste Kunde andere Nummernkreise hat.
+</p>
+
+<h3>5.7 Theme App Extension (was der Block tut)</h3>
+<p>Ein App Block, z. B. „Präsent: Inhalt und Kennzeichnung“, Einstellungen im Editor:</p>
+<ul>
+  <li>Nur anzeigen wenn <code>product.type == Präsent</code> (oder Metafield components nicht leer).</li>
+  <li>Block 1: Inhaltsliste aus <code>component_qty</code> („1 Flasche Label – size“).</li>
+  <li>Reiter A: Text aus Block-Setting (Händler kann den Schenken-Text selbst pflegen, ohne Deploy).</li>
+  <li>Reiter B: für jede Referenz mit <code>show_nutrition</code> die Kind-Metafields rendern (Wein-Layout vs. Food-Layout anhand product_type oder LSA-Typ).</li>
+</ul>
+<p>
+  Der Block liest Storefront-sichtbare Metafields. Deshalb müssen die Definitionen <strong>Storefront access / Liquid visible</strong> haben, sonst sieht der Block nichts.
+</p>
+<p>
+  Shopify Bundles optional nur für Lagerabbau der Komponenten. Die PDP-Darstellung bleibt der App-Block; Bundles ersetzen keine LMIV-Reiter.
+</p>
+
+<h3>5.8 Was die App bewusst nicht tut</h3>
+<ul>
+  <li>Kein Schreiben einer händischen HTML-Inhaltsliste als führende Quelle.</li>
+  <li>Kein Denormalisieren der Nährwerte auf den Parent.</li>
+  <li>Kein Theme-File des Händlers überschreiben.</li>
+  <li>Kein Shopify-Webhook als Auslöser für Neuanlage (nur optional Shop→App für Löschen/Status, falls gewünscht).</li>
+</ul>
+
+<h3>5.9 Hosting, Logs, Betrieb</h3>
+<ul>
+  <li>App-Backend in unserer Infrastruktur, Netz zu Sage (ODBC wie Vinsecco_Client).</li>
+  <li>Job z. B. alle 15–60 Minuten Pull; oder Webhook-Endpoint der App für Sage-seitig ausgelöste POSTs.</li>
+  <li>Protokoll: parent_sku, fehlende Kinder, übersprungene Pflichtfelder, API-429-Retries.</li>
+  <li>Dry-Run-Modus analog <code>create-products --dry-run</code>.</li>
+</ul>
+
+<h2>6. Vorgehen — Kunde / Händler</h2>
+
+<h3>6.1 Voraussetzungen im Shop</h3>
+<ol>
+  <li>Shopify-Plan mit Custom Apps und Online Store 2.0 Theme.</li>
+  <li>Einzelartikel (Wein/Food), die in Sets landen sollen, müssen als Produkte existieren oder mit dem Artikel-Sync mitkommen.</li>
+  <li>Keine parallele Pflege derselben SKUs von Hand im Admin, sonst überschreibt der Sync.</li>
+</ol>
+
+<h3>6.2 Arbeit in Sage (führendes System)</h3>
+<ol>
+  <li>Kind-Artikel anlegen und pflegen (Nährwerte, Allergene, Herkunft am Kind).</li>
+  <li>Parent-Artikel als Verkaufs-Set anlegen, aktiv, für Online vorgesehen.</li>
+  <li>Stückliste am Parent: jedes Element mit Menge. Reihenfolge = gewünschte Reihenfolge im Shop.</li>
+  <li>Zubehör ohne Nährwert trotzdem als Artikel in der Stückliste führen, nicht nur im Kartontext.</li>
+  <li>Wein ersetzen = Stückliste ändern, nicht einen Text im Shop editieren.</li>
+</ol>
+
+<h3>6.3 Einmalig in Shopify</h3>
+<ol>
+  <li>Von uns erhaltene Custom App installieren und API-Berechtigungen bestätigen.</li>
+  <li>Online Store → Themes → Anpassen → Produktvorlage.</li>
+  <li>App-Block „Präsent: Inhalt und Kennzeichnung“ unter die Kurzbeschreibung bzw. in den Reiter-Bereich ziehen.</li>
+  <li>Block-Setting: Anzeige auf Produkttyp Präsent beschränken. Reiter-1-Text bei Bedarf überschreiben.</li>
+  <li>Speichern. Danach gilt der Block für alle Präsent-Produkte dieser Vorlage.</li>
+</ol>
+
+<h3>6.4 Laufender Betrieb</h3>
+<p>
+  Neues Präsent: nur Sage. Innerhalb des Sync-Intervalls erscheint der Parent als Entwurf oder live (je nach Qualitätstor). Inhaltsliste und Nährwert-Reiter entstehen automatisch. Der Händler prüft im Admin Stichproben (Kinder verknüpft? Block sichtbar? Draft-Gründe im Sync-Log bei uns erfragen).
+</p>
+
+<h3>6.5 Was der Kunde nicht tun soll</h3>
+<ul>
+  <li>Inhaltsliste in der Shopify-Produktbeschreibung von Hand pflegen (Vinsecco-Ist, hier Soll-Bruch).</li>
+  <li>Nährwerte ins Set kopieren.</li>
+  <li>Kind-Produkte löschen, die noch in Stücklisten hängen.</li>
+  <li>Theme-Liquid ändern, um denselben Block nachzubauen.</li>
+</ul>
+
+<h2>7. End-to-End-Beispiel</h2>
+<p>Kunde legt in Sage Parent 824006 an, Stückliste:</p>
+<ol>
+  <li>1 × 605091 Wein</li>
+  <li>1 × 734103 Sauce</li>
+  <li>1 × 732165 Zwiebeln</li>
+  <li>1 × 735300 Gewürz</li>
+  <li>1 × 820xxx Schale</li>
+</ol>
+<p>App:</p>
+<ol>
+  <li>Stellt sicher, dass die fünf Kinder im Shop existieren und Metafields haben.</li>
+  <li>Legt/aktualisiert Parent 824006, type Präsent.</li>
+  <li>Schreibt vier Produktverweise mit Nutrition + Schale ohne Nutrition.</li>
+  <li>Publiziert nur wenn 605091/734103/732165/735300 spezifikationsvollständig sind.</li>
+</ol>
+<p>
+  Storefront: Block zeigt fünf Zeilen Inhaltsliste und vier Nährwert-Blöcke. Beschreibungstext des Parents darf Marketing sein („Südafrika für Genießer“), muss aber nicht die Stückliste wiederholen.
+</p>
+
+<h2>8. Abgrenzung zu Vinsecco heute</h2>
+<table>
+  <tr><th></th><th>Vinsecco jetzt</th><th>Ziel mit App (Kunde und später Vinsecco)</th></tr>
+  <tr><td>Auslösung</td><td>Cron Bestand + manuelle CLI</td><td>App-Job / Sage-Ereignis</td></tr>
+  <tr><td>Kinder-Nährwerte</td><td>CSV + metafield_mapping, vorhanden</td><td>gleiche Logik in der App</td></tr>
+  <tr><td>Parent aus BOM</td><td>SQL lesbar, kein Writer</td><td>App ist der Writer</td></tr>
+  <tr><td>Inhaltsliste</td><td>händisches body_html</td><td>generiert aus component_qty</td></tr>
+  <tr><td>PDP-Reiter</td><td>fest im Theme</td><td>App-Block, vom Händler platziert</td></tr>
+  <tr><td>Theme-Git</td><td>Vinsecco-Theme (fremd)</td><td>nicht nötig</td></tr>
+</table>
+
+<h2>9. Einführungsplan</h2>
+<ol>
+  <li>Mit dem Kunden klären: OS-2.0-Theme, Sage hat Stücklisten, Nährwerte am Kind, Nummernkreis/Artikelgruppe für Sets.</li>
+  <li>Metafield-Vertrag und Pflichtfelder je Kind-Typ festziehen.</li>
+  <li>App: Sage-Pull + ChildUpsert + BomChanged, Dry-Run gegen einen Testshop.</li>
+  <li>App Block bauen, im Testshop auf Produktvorlage legen.</li>
+  <li>Ein Pilot-Set (3–5 Kinder, darunter Zubehör ohne Nährwert).</li>
+  <li>Qualitätstor prüfen (fehlendes Kind → Parent bleibt Draft).</li>
+  <li>Kunde installiert App, platziert Block, gibt Sage-Betrieb frei.</li>
+  <li>Erst danach weitere Sets und optional Push statt Pull.</li>
+</ol>
+
+<h2>10. Checklisten</h2>
+<h3>Entwickler vor Go-Live</h3>
+<ul>
+  <li>Scopes, Metafield-Definitionen inkl. Storefront-Sichtbarkeit</li>
+  <li>Idempotenz SKU, Reihenfolge Kinder vor Parent</li>
+  <li>Kein Publish bei fehlendem Kind</li>
+  <li>Wein- vs. Food-Partial im Block</li>
+  <li>Logs und Dry-Run</li>
+  <li>Rate Limits Shopify 429</li>
+</ul>
+<h3>Kunde vor Go-Live</h3>
+<ul>
+  <li>App installiert, Block auf Produkt-Template, gespeichert</li>
+  <li>Pilot-Set in Sage vollständig (Stückliste + Kinderstammdaten)</li>
+  <li>Im Shop: Inhaltsliste = Stückliste, Reiter = dieselben Kinder</li>
+  <li>Klar: Änderungen nur in Sage, nicht in der Produktbeschreibung</li>
+</ul>
+
+<h2>11. Kurz das technische Vorgehen</h2>
+<ol>
+  <li>Sage bleibt Quelle. Stückliste ist der Vertrag.</li>
+  <li>Custom App liest Sage und schreibt Shopify über die Admin API.</li>
+  <li>Kinder zuerst inkl. Metafields, dann Parent mit Produktverweisen und Mengen-JSON.</li>
+  <li>Theme App Block liest genau diese Metafields und baut Liste + Nährwert-Reiter.</li>
+  <li>Händler installiert App und zieht den Block im Editor — ohne Custom-Codebase.</li>
+</ol>
+<p class="note">Dokument für interne Abstimmung und Kundenübergabe. Keine Implementierung, nur Soll-Architektur.</p>
+
+</body>
+</html>

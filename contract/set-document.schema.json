@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devfreund/Shopify-Integration-Pr-sente/contract/set-document.schema.json",
+  "title": "Set-Dokument (Parent mit Sage-Stückliste)",
+  "description": "Eine Datei je Set unter <shop-domain>/sets/<parent_sku>.json. Erzeugt vom Sage-Exporter, gelesen von der Shopify-App.",
+  "type": "object",
+  "required": ["parent_sku", "title", "active", "components"],
+  "additionalProperties": true,
+  "properties": {
+    "parent_sku": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Artikelnummer des verkaufbaren Sets. Idempotenzschlüssel, wird zur Varianten-SKU."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "active": {
+      "type": "boolean",
+      "description": "Aktiv und für Online vorgesehen. false zieht den Parent im Shop auf Entwurf. Aktivieren tut die App nie."
+    },
+    "html": {
+      "type": "string",
+      "description": "Marketing-HTML aus Sage. Geht unverändert nach descriptionHtml."
+    },
+    "kennzeichnung_html": {
+      "type": "string",
+      "description": "Fertiger Kennzeichnungs- und Nährwertblock der explodierten Stückliste. Geht unverändert nach custom.kennzeichnung_html. Wenn gesetzt, werden nutrition_html der Komponenten ignoriert."
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Zeilen der Sage-Stückliste in Anzeigereihenfolge. SKUs müssen eindeutig sein; die App fasst Mengen nicht zusammen.",
+      "items": { "$ref": "#/$defs/component" }
+    }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "required": ["sku", "qty"],
+      "additionalProperties": true,
+      "properties": {
+        "sku": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Artikelnummer des Kindes (Element der Stückliste)."
+        },
+        "qty": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Menge im Karton. Zahl, kein Text."
+        },
+        "nutrition_html": {
+          "type": "string",
+          "description": "Nur setzen, wenn Sage die Kennzeichnung zeilenweise statt als Parent-Block liefert. Die App fügt die Zeilen dann in BOM-Reihenfolge aneinander, ohne eigenes Layout."
+        }
+      }
+    }
+  }
+}
