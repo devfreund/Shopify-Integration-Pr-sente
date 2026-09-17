@@ -1,6 +1,6 @@
 # Vertrag zwischen Sage-Exporter und Shopify-App
 
-Dies ist die einzige Schnittstelle zwischen dem Python-Exporter (`tools/sage-export/`, liest unsere WKF-Sage) und der Shopify-App (`app/`). Wer eine Seite ändert, ändert zuerst dieses Verzeichnis.
+Dies ist die einzige Schnittstelle zwischen dem Python-Exporter ([tools/sage-export/](../tools/sage-export/README.md), liest unsere WKF-Sage) und der Shopify-App (`app/`). Wer eine Seite ändert, ändert zuerst dieses Verzeichnis.
 
 ## Verzeichnislayout
 

@@ -1,0 +1,39 @@
+# Vorlage. Kopie als sage-export.toml anlegen (gitignored) und ausfüllen.
+# Passwörter gehören NICHT hierher, sondern in die Umgebungsvariable
+# SAGE_EXPORT_PASSWORD.
+
+[sage]
+# Entweder eine vorkonfigurierte ODBC-Datenquelle ...
+dsn = "WKF_SAGE"
+
+# ... oder Treiber, Server und Datenbank direkt:
+# driver = "ODBC Driver 18 for SQL Server"
+# server = "sql.intern.wkf"
+# database = "OL_WKF"
+
+# Windows-Anmeldung statt Benutzer/Passwort:
+# trusted_connection = true
+# user = "sage_readonly"
+
+# Mandant der WKF-Sage. Sage-100-Tabellen filtern über diese Spalte.
+mandant = 1
+
+# Zusätzliche ODBC-Schlüssel, falls der Treiber sie braucht:
+# [sage.extra]
+# Encrypt = "yes"
+# TrustServerCertificate = "yes"
+
+[export]
+# Ziel der Shop-Verzeichnisse, relativ zu dieser Datei.
+# In der App als SYNC_SOURCE_DIR auf denselben Pfad zeigen.
+root = "export"
+
+# Verschachtelte Stücklisten auflösen und Mengen multiplizieren.
+# Standard aus: erst prüfen, ob Sage überhaupt mehrstufig liefert.
+explode_bom = false
+
+# Sage-Kennzeichen -> myshopify-Domain. Der Verzeichnisname ist die Domain,
+# deshalb muss sie exakt stimmen. Woran das Kennzeichen in Sage hängt, ist noch
+# offen — siehe SHOP_KEY_COLUMN in sage_export/queries.py.
+[shops]
+WKF = "praesentetesting.myshopify.com"

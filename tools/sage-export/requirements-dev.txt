@@ -1,0 +1,3 @@
+# Tests laufen ohne Sage und ohne ODBC-Treiber; pyodbc wird erst beim
+# Verbinden importiert. Deshalb hier absichtlich nicht requirements.txt.
+pytest==9.1.1

@@ -2,7 +2,9 @@
 
 Verbindliche Repo-Kopie des Umsetzungsplans. Chat-Pläne von Cursor liegen außerhalb dieses Git-Workspaces (`C:\Users\ciftci\.cursor\plans\`). Setup-Einstieg: [README.md](../README.md).
 
-Stand: 16. September 2026. Sage-ODBC ist **nicht** Teil dieses Schritts.
+Stand: 17. September 2026. Die Shopify-Seite steht. Der Sage-Exporter steht als
+Gerüst unter [tools/sage-export/](../tools/sage-export/README.md); offen sind
+allein die **Feldnamen der WKF-Sage**.
 
 ## Verständnis
 
@@ -20,7 +22,7 @@ flowchart LR
   WkfSage[WKF_Sage]
   App[Partner_App]
   MerchantShop[Haendler_Shop]
-  WkfSage -->|"später ODBC, jetzt Fixture"| App
+  WkfSage -->|"ODBC-Exporter, Feldnamen offen"| App
   App -->|"Admin API"| MerchantShop
 ```
 
@@ -143,20 +145,38 @@ Alle Händler nutzen dieselbe WKF-Sage. Ein Export**verzeichnis** gehört genau 
 - Stückliste im Shop erraten
 - Nährwerte unabhängig von der Sage-BOM neu erfinden oder „schön“ zusammenbauen
 - Vinsecco-Repo kopieren
-- Sage-ODBC/SQL in diesem Schritt
+- Sage-Feldnamen raten, statt sie mit `probe` zu belegen
+- Im Exporter ein zweites Mal validieren
 - Secrets in Git
 
-## Nächster Schritt: Sage-Exporter
+## Sage-Exporter
 
-Entschieden: **Python-Exporter in diesem Repo** unter `tools/sage-export/`. Er liest die WKF-Sage per ODBC (`pyodbc`), explodiert die Stückliste analog Vinsecco `Create_CoreDataSets_Complete` — Queries als Vorlage, Repo nicht kopieren — und schreibt JSON nach [contract/](../contract/README.md).
+Entschieden und angelegt: **Python-Exporter in diesem Repo** unter
+[tools/sage-export/](../tools/sage-export/README.md). Er liest die WKF-Sage per
+ODBC (`pyodbc`), explodiert die Stückliste analog Vinsecco
+`Create_CoreDataSets_Complete` — Queries als Vorlage, Repo nicht kopieren — und
+schreibt JSON nach [contract/](../contract/README.md).
 
-Aufteilung: Python erzeugt das JSON, Node validiert und schreibt nach Shopify. Die Validierung bleibt **nur** auf der Node-Seite; zweimal prüfen erzeugt zwei Wahrheiten, die auseinanderlaufen.
+Aufteilung: Python erzeugt das JSON, Node validiert und schreibt nach Shopify. Die Validierung bleibt **nur** auf der Node-Seite; zweimal prüfen erzeugt zwei Wahrheiten, die auseinanderlaufen. Der Exporter setzt das um, indem er defekte Werte unverändert durchlässt, statt sie zu heilen: eine Menge als Text bleibt Text, und Node nennt Datei, Feld und Wert.
 
-Dafür gebraucht: Sage-Verbindung (DSN/Mandant), die Feldnamen für Titel, Online-Flag und Kennzeichnungstext sowie die Regel, welcher Artikel in welchen Shop gehört.
+Steht: Konfiguration, ODBC-Zugriff (lesend), BOM-Auflösung, der Writer für die
+Shop-Verzeichnisse und die Kommandozeile (`check`, `probe`, `export`).
+Deaktivierungen entstehen aus dem Vergleich mit dem vorigen Export, weil Sage
+kein Ereignis „nicht mehr online" kennt.
+
+### Der eine offene Punkt: die Sage-Feldnamen
+
+Die Abfragen in `sage_export/queries.py` enthalten Platzhalter statt geratener
+Spalten, und der Exporter **verweigert den Lauf**, solange einer offen ist.
+`python -m sage_export check` listet sie, `probe` findet sie im Schema.
+
+Gebraucht: Sage-Verbindung (DSN/Mandant), die Feldnamen für Titel, Online-Flag
+und Kennzeichnungstext sowie die Regel, welcher Artikel in welchen Shop gehört.
 
 Dabei mit zu klären:
 
-- **Preis.** Der Vertrag (`SetDocument` / `ChildDocument`) hat bewusst noch kein Preisfeld, deshalb stehen Parents im Shop auf 0,00. Aufgenommen wird es erst, wenn feststeht, welches Sage-Feld gilt. Dann schreibt der Writer den Preis auf die Varianten-SKU.
-- **Set-Erkennung.** Stücklistentyp und Artikelgruppe, nicht SKU-Präfix.
+- **Preis.** Der Vertrag (`SetDocument` / `ChildDocument`) hat bewusst noch kein Preisfeld, deshalb stehen Parents im Shop auf 0,00. Aufgenommen wird es erst, wenn feststeht, welches Sage-Feld gilt — zuerst in `contract/`, dann im Exporter. Dann schreibt der Writer den Preis auf die Varianten-SKU.
+- **Set-Erkennung.** Stücklistentyp und Artikelgruppe, nicht SKU-Präfix (`SET_FILTER`).
+- **Mehrstufige Stücklisten.** Ob Sage überhaupt verschachtelt liefert, ist offen. Der Exporter nimmt standardmäßig die direkten Zeilen; `explode_bom` schaltet die Auflösung mit Mengenmultiplikation ein.
 - **Veröffentlichung.** Erledigt der Händler, wie das Aktivieren. Die App veröffentlicht nicht in Vertriebskanäle und braucht kein `write_publications`.
-- **Auslösung.** Geplanter Pull zuerst, Push später; beides über dieselben drei Ereignisse.
+- **Auslösung.** Geplanter Pull zuerst, Push später; beides über dieselben drei Ereignisse. Heute löst der Button im App-Home den Sync aus.

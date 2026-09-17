@@ -1,0 +1,62 @@
+{
+  "_": "Sage-Zeilen, wie die Abfragen aus queries.py sie liefern sollen. Nur zum Ausprobieren der Kette Zeilen -> Dokumente -> Dateien: python -m sage_export export --rows samples/rows.example.json --dry-run. Die Inhalte entsprechen fixtures/praesentetesting.myshopify.com/.",
+  "children": [
+    {
+      "shop_key": "WKF",
+      "sku": "605091",
+      "title": "False Bay Slow Chenin Blanc",
+      "active": 1,
+      "product_type": "Wein",
+      "html": null
+    },
+    {
+      "shop_key": "WKF",
+      "sku": "734103",
+      "title": "Chutney / Sauce",
+      "active": 1,
+      "product_type": "Food",
+      "html": null
+    },
+    {
+      "shop_key": "WKF",
+      "sku": "732165",
+      "title": "Zwiebeln",
+      "active": 1,
+      "product_type": "Food",
+      "html": null
+    },
+    {
+      "shop_key": "WKF",
+      "sku": "735300",
+      "title": "Gewürz",
+      "active": 1,
+      "product_type": "Food",
+      "html": null
+    },
+    {
+      "shop_key": "WKF",
+      "sku": "820001",
+      "title": "mintgrüne Keramikschale",
+      "active": 1,
+      "product_type": "Zubehör",
+      "html": null
+    }
+  ],
+  "sets": [
+    {
+      "shop_key": "WKF",
+      "parent_sku": "824006",
+      "title": "Präsent African Spice-Box",
+      "active": 1,
+      "html": "<p>Südafrika für Genießer. Im naturfarbenen Präsentkarton.</p>",
+      "kennzeichnung_html": "1.0 x False Bay Slow Chenin Blanc Zutatenverzeichnis Trauben, Sulfite\n1.0 x Chutney / Sauce Zutatenverzeichnis …\n1.0 x Zwiebeln Zutatenverzeichnis …\n1.0 x Gewürz Zutatenverzeichnis …"
+    }
+  ],
+  "bom": [
+    { "parent_sku": "824006", "sku": "605091", "qty": 1, "position": 10, "nutrition_html": null },
+    { "parent_sku": "824006", "sku": "734103", "qty": 1, "position": 20, "nutrition_html": null },
+    { "parent_sku": "824006", "sku": "732165", "qty": 1, "position": 30, "nutrition_html": null },
+    { "parent_sku": "824006", "sku": "735300", "qty": 1, "position": 40, "nutrition_html": null },
+    { "parent_sku": "824006", "sku": "820001", "qty": 1, "position": 50, "nutrition_html": null }
+  ]
+}

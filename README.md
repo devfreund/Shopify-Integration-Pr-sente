@@ -23,7 +23,7 @@ Architektur und Sync-Vertrag: [docs/PLAN.md](docs/PLAN.md).
 
 Zwei Schienen: Artikel-Sync (Kind) und Set-Sync (Stückliste + Texte).
 
-Die App liest ihre Daten aus einem JSON-Export, dessen Format in [contract/](contract/README.md) festgeschrieben ist. Ein Exportverzeichnis gehört genau einem Shop, benannt nach der myshopify-Domain — welches Set in welchen Shop gehört, entscheidet Sage. Heute füllen Fixtures diesen Export, später der Python-Exporter unter `tools/sage-export/`.
+Die App liest ihre Daten aus einem JSON-Export, dessen Format in [contract/](contract/README.md) festgeschrieben ist. Ein Exportverzeichnis gehört genau einem Shop, benannt nach der myshopify-Domain — welches Set in welchen Shop gehört, entscheidet Sage. Heute füllen Fixtures diesen Export; den Exporter dazu gibt es als Gerüst unter [tools/sage-export/](tools/sage-export/README.md), ihm fehlen noch die Sage-Feldnamen.
 
 ## Setup
 
