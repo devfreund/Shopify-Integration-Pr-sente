@@ -1,4 +1,5 @@
 import type { ChildDocument, Component, Deactivation, SetDocument } from "./types";
+import { CHILD_BOOLEAN_FACTS, CHILD_NUMBER_FACTS, CHILD_TEXT_FACTS } from "./types";
 
 /**
  * Eingangsvalidierung am Adapter-Rand. Gilt für Fixtures und für den
@@ -21,8 +22,10 @@ export function parseChildDocument(raw: unknown, origin: string): ChildDocument 
     sku: requireString(record, "sku", origin),
     title: requireString(record, "title", origin),
     active: requireBoolean(record, "active", origin),
+    ...optionalPrice(record, origin),
     ...optionalString(record, "product_type", origin),
     ...optionalString(record, "html", origin),
+    ...childFacts(record, origin),
   };
 }
 
@@ -55,6 +58,7 @@ export function parseSetDocument(raw: unknown, origin: string): SetDocument {
     parent_sku: requireString(record, "parent_sku", origin),
     title: requireString(record, "title", origin),
     active: requireBoolean(record, "active", origin),
+    ...optionalPrice(record, origin),
     ...optionalString(record, "html", origin),
     ...optionalString(record, "kennzeichnung_html", origin),
     components,
@@ -136,6 +140,73 @@ function requireBoolean(
  * Optionale Texte werden nur übernommen, wenn sie da sind. HTML bleibt
  * unverändert, insbesondere ohne trim, damit Sage-Blöcke exakt durchgehen.
  */
+function childFacts(
+  record: Record<string, unknown>,
+  origin: string,
+): Partial<ChildDocument> {
+  const facts: Partial<ChildDocument> = {};
+  for (const field of CHILD_NUMBER_FACTS) {
+    const value = record[field];
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new SourceValidationError(
+        origin,
+        `${field} muss eine Zahl sein, ist ${JSON.stringify(value)}`,
+      );
+    }
+    facts[field] = value;
+  }
+  for (const field of CHILD_TEXT_FACTS) {
+    const value = record[field];
+    if (value === undefined || value === null || value === "") {
+      continue;
+    }
+    if (typeof value !== "string") {
+      throw new SourceValidationError(
+        origin,
+        `${field} muss Text sein, ist ${JSON.stringify(value)}`,
+      );
+    }
+    if (field === "jahrgang" && value.trim() === "0") {
+      continue;
+    }
+    facts[field] = value;
+  }
+  for (const field of CHILD_BOOLEAN_FACTS) {
+    const value = record[field];
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (typeof value !== "boolean") {
+      throw new SourceValidationError(
+        origin,
+        `${field} muss true oder false sein, ist ${JSON.stringify(value)}`,
+      );
+    }
+    facts[field] = value;
+  }
+  return facts;
+}
+
+function optionalPrice(
+  record: Record<string, unknown>,
+  origin: string,
+): { price?: number } {
+  const value = record.price;
+  if (value === undefined || value === null) {
+    return {};
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new SourceValidationError(
+      origin,
+      `price muss eine Zahl >= 0 sein, ist ${JSON.stringify(value)}`,
+    );
+  }
+  return { price: value };
+}
+
 function optionalString<K extends string>(
   record: Record<string, unknown>,
   field: K,

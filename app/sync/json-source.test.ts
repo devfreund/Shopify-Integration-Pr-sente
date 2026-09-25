@@ -118,6 +118,42 @@ describe("Eingangsvalidierung", () => {
     );
   });
 
+  it("übernimmt price unverändert und weist Text ab", async () => {
+    const dir = await writeExport({
+      "sets/824006.json": {
+        parent_sku: "824006",
+        title: "Präsent",
+        active: true,
+        price: 12.5,
+        components: [{ sku: "605091", qty: 1 }],
+      },
+      "children/605091.json": {
+        sku: "605091",
+        title: "Wein",
+        active: true,
+        price: 0,
+      },
+    });
+    const source = new JsonSourceAdapter(dir);
+    const [set] = await source.loadSets();
+    const [child] = await source.loadChildren();
+    expect(set.price).toBe(12.5);
+    expect(child.price).toBe(0);
+
+    const rejected = await writeExport({
+      "sets/824006.json": {
+        parent_sku: "824006",
+        title: "Präsent",
+        active: true,
+        price: "12.50",
+        components: [{ sku: "605091", qty: 1 }],
+      },
+    });
+    await expect(new JsonSourceAdapter(rejected).loadSets()).rejects.toThrow(
+      /price muss eine Zahl/,
+    );
+  });
+
   it("lässt HTML unverändert durch, auch mit Zeilenumbrüchen", async () => {
     const block = "  1.0 x Wein Zutatenverzeichnis A\n1.0 x Food B  ";
     const dir = await writeExport({
@@ -131,5 +167,38 @@ describe("Eingangsvalidierung", () => {
     });
     const [set] = await new JsonSourceAdapter(dir).loadSets();
     expect(set.kennzeichnung_html).toBe(block);
+  });
+
+  it("übernimmt Kind-Fakten und lässt leere weg", async () => {
+    const dir = await writeExport({
+      "children/7353000.json": {
+        sku: "7353000",
+        title: "Funky Ouma",
+        active: true,
+        price: 6.9,
+        brennwert_kcal: 198,
+        zutaten: "Meersalz",
+        allergene: "",
+        jahrgang: "0",
+        enthalt_sulfite: false,
+        herkunftsland: "Südafrika",
+      },
+      "children/9200380.json": {
+        sku: "9200380",
+        title: "Füllmaterial",
+        active: true,
+      },
+    });
+    const children = await new JsonSourceAdapter(dir).loadChildren();
+    const food = children.find((child) => child.sku === "7353000");
+    const fill = children.find((child) => child.sku === "9200380");
+    expect(food?.brennwert_kcal).toBe(198);
+    expect(food?.zutaten).toBe("Meersalz");
+    expect(food?.allergene).toBeUndefined();
+    expect(food?.jahrgang).toBeUndefined();
+    expect(food?.enthalt_sulfite).toBe(false);
+    expect(food?.herkunftsland).toBe("Südafrika");
+    expect(fill?.brennwert_kcal).toBeUndefined();
+    expect(fill?.price).toBeUndefined();
   });
 });

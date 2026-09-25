@@ -1,10 +1,13 @@
 import type { ShopWriter } from "./shop-writer";
 import type {
+  ChildDocument,
+  ChildFactKey,
   ParentBomInput,
   ProductRef,
   ProductStatus,
   UpsertProductInput,
 } from "./types";
+import { CHILD_BOOLEAN_FACTS, CHILD_NUMBER_FACTS, CHILD_TEXT_FACTS } from "./types";
 
 export type GraphqlClient = {
   graphql: (
@@ -17,6 +20,7 @@ type UserError = { field?: string[] | null; message: string; code?: string | nul
 
 export class ShopifyShopWriter implements ShopWriter {
   private definitionsReady = false;
+  private childFactsReady = false;
   private readonly skuCache = new Map<string, ProductRef | null>();
 
   constructor(
@@ -71,6 +75,9 @@ export class ShopifyShopWriter implements ShopWriter {
     if (existing) {
       await this.updateProduct(existing.id, input);
       await this.ensureSku(existing.id, input.sku);
+      if (input.price != null) {
+        await this.ensurePrice(existing.id, input.price);
+      }
       const ref = { sku: input.sku, id: existing.id };
       this.skuCache.set(input.sku, ref);
       return ref;
@@ -78,6 +85,47 @@ export class ShopifyShopWriter implements ShopWriter {
     const created = await this.createProduct(input);
     this.skuCache.set(input.sku, created);
     return created;
+  }
+
+  async writeChildFacts(child: ChildDocument, product: ProductRef): Promise<void> {
+    const metafields = childFactMetafields(product.id, child);
+    if (metafields.length === 0 || this.options.dryRun) {
+      return;
+    }
+    await this.ensureChildFactDefinitions();
+    if (child.jahrgang === undefined) {
+      await this.deleteChildFact(product.id, "jahrgang");
+    }
+    const data = await this.query<{
+      metafieldsSet: { userErrors: UserError[] };
+    }>(
+      `#graphql
+      mutation WriteChildFacts($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+      { metafields },
+    );
+    assertNoUserErrors("metafieldsSet(child)", data.metafieldsSet.userErrors);
+  }
+
+  private async deleteChildFact(ownerId: string, key: string): Promise<void> {
+    const data = await this.query<{
+      metafieldsDelete: { userErrors: UserError[] };
+    }>(
+      `#graphql
+      mutation DeleteChildFact($metafields: [MetafieldIdentifierInput!]!) {
+        metafieldsDelete(metafields: $metafields) {
+          userErrors { field message }
+        }
+      }`,
+      { metafields: [{ ownerId, namespace: "custom", key }] },
+    );
+    const errors = data.metafieldsDelete.userErrors.filter(
+      (error) => !/does not exist|not found/i.test(error.message),
+    );
+    assertNoUserErrors("metafieldsDelete(child)", errors);
   }
 
   async writeParentBom(input: ParentBomInput): Promise<void> {
@@ -160,6 +208,7 @@ export class ShopifyShopWriter implements ShopWriter {
         {
           optionValues: [{ optionName: "Title", name: "Default Title" }],
           inventoryItem: { sku: input.sku },
+          ...(input.price != null ? { price: money(input.price) } : {}),
         },
       ],
     };
@@ -229,6 +278,41 @@ export class ShopifyShopWriter implements ShopWriter {
       },
     );
     assertNoUserErrors(`productVariantsBulkUpdate(${sku})`, skuData.productVariantsBulkUpdate.userErrors);
+  }
+
+  private async ensurePrice(productId: string, price: number): Promise<void> {
+    const data = await this.query<{
+      product: {
+        variants: { nodes: Array<{ id: string }> };
+      } | null;
+    }>(
+      `#graphql
+      query VariantForPrice($id: ID!) {
+        product(id: $id) {
+          variants(first: 1) { nodes { id } }
+        }
+      }`,
+      { id: productId },
+    );
+    const variantId = data.product?.variants.nodes[0]?.id;
+    if (!variantId) {
+      throw new Error(`Keine Variante für Preis an ${productId}`);
+    }
+    const updated = await this.query<{
+      productVariantsBulkUpdate: { userErrors: UserError[] };
+    }>(
+      `#graphql
+      mutation SetVariantPrice($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+          userErrors { field message }
+        }
+      }`,
+      {
+        productId,
+        variants: [{ id: variantId, price: money(price) }],
+      },
+    );
+    assertNoUserErrors("productVariantsBulkUpdate(price)", updated.productVariantsBulkUpdate.userErrors);
   }
 
   /**
@@ -327,6 +411,53 @@ export class ShopifyShopWriter implements ShopWriter {
     this.definitionsReady = true;
   }
 
+  private async ensureChildFactDefinitions(): Promise<void> {
+    if (this.childFactsReady) {
+      return;
+    }
+    const definitions = [
+      ...CHILD_NUMBER_FACTS.map((key) => ({
+        name: key,
+        namespace: "custom",
+        key,
+        type: "number_decimal",
+        ownerType: "PRODUCT",
+      })),
+      ...CHILD_BOOLEAN_FACTS.map((key) => ({
+        name: key,
+        namespace: "custom",
+        key,
+        type: "boolean",
+        ownerType: "PRODUCT",
+      })),
+      ...CHILD_TEXT_FACTS.map((key) => ({
+        name: key,
+        namespace: "custom",
+        key,
+        type: key === "jahrgang" ? "single_line_text_field" : "multi_line_text_field",
+        ownerType: "PRODUCT",
+      })),
+    ];
+    for (const definition of definitions) {
+      const data = await this.query<{
+        metafieldDefinitionCreate: { userErrors: UserError[] };
+      }>(
+        `#graphql
+        mutation CreateChildFactDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            userErrors { field message }
+          }
+        }`,
+        { definition },
+      );
+      const errors = data.metafieldDefinitionCreate.userErrors.filter(
+        (error) => !isAlreadyExistsError(error.message),
+      );
+      assertNoUserErrors("metafieldDefinitionCreate", errors);
+    }
+    this.childFactsReady = true;
+  }
+
   private async query<T>(
     query: string,
     variables?: Record<string, unknown>,
@@ -394,6 +525,41 @@ function assertNoUserErrors(operation: string, errors: UserError[]) {
   );
 }
 
+function childFactMetafields(ownerId: string, child: ChildDocument) {
+  const keys: ChildFactKey[] = [
+    ...CHILD_NUMBER_FACTS,
+    ...CHILD_TEXT_FACTS,
+    ...CHILD_BOOLEAN_FACTS,
+  ];
+  return keys.flatMap((key) => {
+    const value = child[key];
+    if (value === undefined || value === null || value === "") {
+      return [];
+    }
+    const numeric = (CHILD_NUMBER_FACTS as readonly string[]).includes(key);
+    return [
+      {
+        ownerId,
+        namespace: "custom",
+        key,
+        type: numeric
+          ? "number_decimal"
+          : key === "jahrgang"
+            ? "single_line_text_field"
+            : (CHILD_BOOLEAN_FACTS as readonly string[]).includes(key)
+              ? "boolean"
+              : "multi_line_text_field",
+        value: String(value),
+      },
+    ];
+  });
+}
+
+function money(price: number): string {
+  return String(price);
+}
+
 function isAlreadyExistsError(message: string) {
-  return /taken|already exists|has already been taken/i.test(message);
+  // Shopify: "has already been taken" oder "Key is in use for Product metafields".
+  return /taken|already exists|in use/i.test(message);
 }

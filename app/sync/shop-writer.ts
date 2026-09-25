@@ -1,8 +1,9 @@
-import type { ParentBomInput, ProductRef, UpsertProductInput } from "./types";
+import type { ChildDocument, ParentBomInput, ProductRef, UpsertProductInput } from "./types";
 
 export interface ShopWriter {
   findBySku(sku: string): Promise<ProductRef | null>;
   upsertProduct(input: UpsertProductInput): Promise<ProductRef>;
+  writeChildFacts(child: ChildDocument, product: ProductRef): Promise<void>;
   writeParentBom(input: ParentBomInput): Promise<void>;
   /**
    * Nur DRAFT. Es gibt bewusst kein Gegenstück zum Aktivieren:

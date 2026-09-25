@@ -3,7 +3,7 @@ name = "sage-export"
 version = "0.1.0"
 description = "Exportiert Präsent-Sets aus der WKF-Sage als JSON-Vertrag für die Shopify-App"
 requires-python = ">=3.11"
-dependencies = ["pyodbc==5.3.0"]
+dependencies = ["pyodbc==5.3.0", "python-dotenv==1.1.1"]
 
 [project.scripts]
 sage-export = "sage_export.cli:main"

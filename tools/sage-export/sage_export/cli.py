@@ -13,7 +13,8 @@ import sys
 from pathlib import Path
 
 from . import __version__, queries
-from .config import Config, ConfigError, load_config
+from .config import Config, ConfigError, SageConnection, load_config
+from .env import load_env_files
 from .model import ShopExport
 from .odbc import SageUnavailable, connect
 from .pipeline import SourceRows, build_exports, deactivations_for, fetch_rows
@@ -89,11 +90,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def _check(args: argparse.Namespace) -> int:
     config = load_config(args.config)
+    env_files = load_env_files(Path.cwd(), Path(__file__).resolve().parent.parent)
     print(f"Konfiguration: {config.source}")
+    if env_files:
+        print(f"Umgebung aus:  {', '.join(str(path) for path in env_files)}")
     print(f"Sage:          {config.sage.redacted()}")
     print(f"Mandant:       {config.mandant}")
     print(f"Exportwurzel:  {config.export_root}")
     print(f"Stückliste:    {'explodiert' if config.explode_bom else 'direkte Zeilen'}")
+    print(f"Präsent:       Gruppen {', '.join(config.article_groups)}; Auswertung {', '.join(str(value) for value in config.evaluation_groups)}")
     print("Shops:")
     for key, domain in sorted(config.shops.items()):
         print(f"  {key} -> {domain}")
@@ -117,8 +122,8 @@ def _probe(args: argparse.Namespace) -> int:
         print("Entweder --tables MUSTER oder --columns TABELLE angeben.", file=sys.stderr)
         return 2
 
-    config = load_config(args.config)
-    with connect(config.sage) as database:
+    sage = _sage_for_probe(args.config)
+    with connect(sage) as database:
         if args.tables:
             rows = database.tables(args.tables)
             if not rows:
@@ -135,6 +140,23 @@ def _probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sage_for_probe(explicit: Path | None) -> SageConnection:
+    """Verbindung für ``probe``, notfalls allein aus der Umgebung.
+
+    ``probe`` ist das Werkzeug, mit dem die offenen Feldnamen überhaupt gefunden
+    werden. Es muss deshalb schon laufen, bevor eine ``sage-export.toml``
+    existiert: eine ``.env`` mit ``WKF_*`` genügt.
+    """
+    try:
+        return load_config(explicit).sage
+    except ConfigError as error:
+        if explicit is not None:
+            raise
+        print(f"Hinweis: {error}", file=sys.stderr)
+        print("Hinweis: Verbindung wird aus der Umgebung gelesen.", file=sys.stderr)
+        return SageConnection.from_env()
+
+
 def _export(args: argparse.Namespace) -> int:
     config = load_config(args.config)
 
@@ -145,7 +167,7 @@ def _export(args: argparse.Namespace) -> int:
         # die Produktivdatenbank öffnen.
         queries.ensure_ready()
         with connect(config.sage) as database:
-            rows = fetch_rows(database, config.mandant)
+            rows = fetch_rows(database, config.mandant, _liste_id(config))
 
     report = build_exports(rows, config)
     for warning in report.warnings:
@@ -195,6 +217,18 @@ def _export(args: argparse.Namespace) -> int:
     if args.dry_run:
         print("\nTrockenlauf: keine Datei angefasst.")
     return 0
+
+
+def _liste_id(config: Config) -> int | None:
+    """Eine Preisliste je Lauf. Steht am Shop in der TOML, nie in der Query."""
+    ids = set(config.price_lists.values())
+    if len(ids) > 1:
+        raise ConfigError(
+            "Die Shops haben verschiedene liste_id. Ein Export-Lauf kann nur eine Preisliste lesen."
+        )
+    if len(config.shops) == 1:
+        return config.price_lists.get(next(iter(config.shops)))
+    return next(iter(ids)) if ids else None
 
 
 def _rows_from_file(path: Path) -> SourceRows:

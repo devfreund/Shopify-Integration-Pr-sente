@@ -34,8 +34,10 @@ pnpm-lock.yaml
 .tools/
 
 # Sage-Exporter: Zugangsdaten und exportierte Händlerdaten gehören nicht in Git
+/tools/sage-export/.env
 /tools/sage-export/sage-export.toml
 /tools/sage-export/export/
+/tools/sage-export/pilot/
 /tools/sage-export/.venv/
 __pycache__/
 *.py[cod]

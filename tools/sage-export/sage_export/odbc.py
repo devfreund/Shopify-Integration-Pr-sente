@@ -108,6 +108,20 @@ def connect(sage: SageConnection, *, timeout: int = 30) -> Iterator[OdbcDatabase
         connection.close()
 
 
+@contextmanager
+def connect_wkf(*, timeout: int = 30) -> Iterator[OdbcDatabase]:
+    """Verbindung zur WKF-Sage allein aus der Umgebung.
+
+    Gegenstück zu Vinseccos ``Get_PYODBC_Connection_WKF``: Zugangsdaten aus
+    ``WKF_SERVER`` / ``WKF_DATABASE`` / ``WKF_UID`` / ``WKF_PWD`` (Fallback
+    ``DB_SERVER`` / ``DB_NAME`` / ``DB_USER`` / ``DB_PASSWORD``), nichts im Code.
+    Braucht keine ``sage-export.toml`` und ist damit für ``probe`` geeignet,
+    bevor eine Konfiguration existiert.
+    """
+    with connect(SageConnection.from_env(), timeout=timeout) as database:
+        yield database
+
+
 class StaticDatabase:
     """Datenquelle aus vorgegebenen Zeilen. Für Tests und Trockenläufe."""
 

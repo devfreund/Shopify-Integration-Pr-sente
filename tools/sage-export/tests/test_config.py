@@ -7,6 +7,10 @@ MINIMAL = """
 dsn = "WKF_SAGE"
 mandant = 1
 
+[export]
+article_groups = ["800"]
+evaluation_groups = [0]
+
 [shops]
 WKF = "praesentetesting.myshopify.com"
 """
@@ -77,6 +81,13 @@ def test_shops_muessen_myshopify_domains_sein(tmp_path):
     )
 
     with pytest.raises(ConfigError, match="myshopify"):
+        load_config(write(tmp_path, text))
+
+
+def test_fehlende_article_groups_brechen_ab(tmp_path):
+    text = MINIMAL.replace('article_groups = ["800"]\n', "")
+
+    with pytest.raises(ConfigError, match="article_groups"):
         load_config(write(tmp_path, text))
 
 

@@ -67,6 +67,57 @@ describe("syncFromSource", () => {
     ]);
   });
 
+  it("schreibt Nährwerte nur ans Kind und den Listenpreis auf die Variante", async () => {
+    const writer = new MemoryShopWriter();
+    await syncFromSource(
+      source({
+        children: [
+          {
+            sku: "7353000",
+            title: "Funky Ouma African BBQ Spice",
+            active: true,
+            price: 6.9,
+            brennwert_kcal: 198,
+            brennwert_kj: 829,
+            zutaten: "Nicht jodiertes Meersalz",
+          },
+          { sku: "9200380", title: "Füllmaterial", active: true },
+        ],
+        sets: [
+          {
+            parent_sku: "8240060",
+            title: "African-Spice-Box",
+            active: true,
+            price: 44,
+            kennzeichnung_html: "Im naturfarbenen Präsentkarton:",
+            components: [
+              { sku: "7353000", qty: 1 },
+              { sku: "9200380", qty: 0.2 },
+            ],
+          },
+        ],
+      }),
+      writer,
+    );
+
+    const food = writer.products.get("7353000");
+    const carton = writer.products.get("9200380");
+    const parent = writer.products.get("8240060");
+    expect(food?.price).toBe(6.9);
+    expect(food?.facts?.brennwert_kcal).toBe(198);
+    expect(food?.facts?.zutaten).toBe("Nicht jodiertes Meersalz");
+    expect(carton?.price).toBeUndefined();
+    expect(carton?.facts?.brennwert_kcal).toBeUndefined();
+    expect(carton?.facts?.zutaten).toBeUndefined();
+    expect(parent?.price).toBe(44);
+    expect(parent?.facts).toBeUndefined();
+    expect(parent?.kennzeichnungHtml).toBe("Im naturfarbenen Präsentkarton:");
+    expect(parent?.componentQty).toEqual([
+      { sku: "7353000", qty: 1 },
+      { sku: "9200380", qty: 0.2 },
+    ]);
+  });
+
   it("aktiviert nie, auch bei grünem Tor", async () => {
     const writer = new MemoryShopWriter();
     await syncFromSource(source({ children, sets: [completeSet] }), writer);

@@ -1,6 +1,5 @@
 # Vorlage. Kopie als sage-export.toml anlegen (gitignored) und ausfüllen.
-# Passwörter gehören NICHT hierher, sondern in die Umgebungsvariable
-# SAGE_EXPORT_PASSWORD.
+# Passwörter gehören NICHT hierher, sondern in .env (WKF_PWD / DB_PASSWORD).
 
 [sage]
 # Entweder eine vorkonfigurierte ODBC-Datenquelle ...
@@ -32,8 +31,17 @@ root = "export"
 # Standard aus: erst prüfen, ob Sage überhaupt mehrstufig liefert.
 explode_bom = false
 
-# Sage-Kennzeichen -> myshopify-Domain. Der Verzeichnisname ist die Domain,
-# deshalb muss sie exakt stimmen. Woran das Kennzeichen in Sage hängt, ist noch
-# offen — siehe SHOP_KEY_COLUMN in sage_export/queries.py.
+# Sortimentsart Präsent, gleich für jeden Shop. Keine Zuordnung Set → Domain.
+# Probe Mandant 2: 8240060 African-Spice-Box ist Artikelgruppe 800 und
+# USER_Auswertungsgruppe 0. Dieselbe Artikelgruppe 800 mit Auswertungsgruppe
+# 80000 sind Weinpakete (8990070). 80100/880 nicht übernehmen: 8240060 liegt nicht dort.
+article_groups = ["800"]
+evaluation_groups = [0]
+
+# Jeder Shop bekommt denselben gefilterten Satz. Der Ordnername ist die Domain.
 [shops]
+# Entweder nur die Domain, oder Domain plus Preisliste:
+# [shops.WKF]
+# domain = "praesentetesting.myshopify.com"
+# liste_id = 12
 WKF = "praesentetesting.myshopify.com"

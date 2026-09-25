@@ -36,10 +36,11 @@ Die App validiert jedes Dokument beim Einlesen und bricht bei einem Defekt ab, s
 
 - fehlende oder leere `sku` / `parent_sku` / `title`
 - `active` als etwas anderes als `true` / `false`
+- `price` als Text oder als Wert < 0. Fehlt `price`, bleibt der Shop bei 0,00. Steht eine Zahl da, geht sie unverändert auf die Variante (`KHKPreislistenArtikel.Einzelpreis` der `liste_id` aus der Exporter-TOML, keine Netto/Brutto-Rechnung).
 - `qty` als Text (`"1"`) oder als Wert ≤ 0
 - leere `components` — ein Set ohne Stückliste kommt nicht aus Sage
 - dieselbe Komponenten-SKU mehrfach in einem Set; Mengen werden nicht zusammengefasst
 
 HTML wird nie umgeformt, auch nicht getrimmt. `kennzeichnung_html` am Parent gewinnt; `nutrition_html` je Komponente wird nur verwendet, wenn kein Parent-Block da ist, und dann nur in BOM-Reihenfolge aneinandergefügt.
 
-Zusätzliche Felder sind erlaubt und werden ignoriert. Der Exporter darf also mehr liefern, als die App heute verwendet.
+Kind-Fakten (`brennwert_kcal`, `brennwert_kj`, `kohlenhydrate`, `davon_zucker`, `fett`, `davon_gesattigte_fettsauren`, `eiweis`, `salz`, `ballaststoffe`, `zutaten`, `allergene`, `jahrgang`, `alkohol_vol`, `charakteristik`, `in_verkehr_bringer`, `enthalt_sulfite`, `flascheninhalt`, `herkunftsland`, `region`, `verkehrsbezeichnung`) schreibt die App als `custom.*` nur auf das Kind. `jahrgang` 0 oder `"0"` fehlt. Der Parent bekommt keine Nährwerte. Seine `html` ist derselbe Dimensionstext wie `kennzeichnung_html`, unverändert und ohne `<p>`, damit die Beschreibung in jedem Theme erscheint. Kind-`html` bleibt leer, wenn Sage leer ist. Andere zusätzliche Felder bleiben erlaubt und werden ignoriert.

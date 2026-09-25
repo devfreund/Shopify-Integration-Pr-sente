@@ -1,5 +1,6 @@
 import type { ShopWriter } from "./shop-writer";
 import type {
+  ChildDocument,
   ParentBomInput,
   ProductRef,
   ProductStatus,
@@ -13,9 +14,11 @@ export type MemoryProduct = {
   productType?: string;
   status: ProductStatus;
   descriptionHtml?: string;
+  price?: number;
   componentIds?: string[];
   componentQty?: Array<{ sku: string; qty: number }>;
   kennzeichnungHtml?: string;
+  facts?: ChildDocument;
 };
 
 export class MemoryShopWriter implements ShopWriter {
@@ -35,6 +38,9 @@ export class MemoryShopWriter implements ShopWriter {
       existing.title = input.title;
       existing.productType = input.productType;
       existing.descriptionHtml = input.descriptionHtml;
+      if (input.price != null) {
+        existing.price = input.price;
+      }
       return { sku: existing.sku, id: existing.id };
     }
 
@@ -46,10 +52,19 @@ export class MemoryShopWriter implements ShopWriter {
       // Neu angelegte Produkte sind immer DRAFT. Aktivieren macht der Händler.
       status: "DRAFT",
       descriptionHtml: input.descriptionHtml,
+      ...(input.price != null ? { price: input.price } : {}),
     };
     this.products.set(input.sku, created);
     this.calls.push(`create:${input.sku}`);
     return { sku: created.sku, id: created.id };
+  }
+
+  async writeChildFacts(child: ChildDocument, product: ProductRef): Promise<void> {
+    this.calls.push(`facts:${product.sku}`);
+    const stored = this.products.get(product.sku);
+    if (stored) {
+      stored.facts = child;
+    }
   }
 
   async writeParentBom(input: ParentBomInput): Promise<void> {

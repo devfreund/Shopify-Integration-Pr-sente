@@ -17,6 +17,34 @@
       "type": "boolean",
       "description": "false zieht das Produkt im Shop auf Entwurf."
     },
+    "price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Einzelpreis aus KHKPreislistenArtikel für die liste_id des Shops. Fehlt das Feld, schreibt die App keinen Preis."
+    },
+    "brennwert_kcal": { "type": "number" },
+    "brennwert_kj": { "type": "number" },
+    "kohlenhydrate": { "type": "number" },
+    "davon_zucker": { "type": "number" },
+    "fett": { "type": "number" },
+    "davon_gesattigte_fettsauren": { "type": "number" },
+    "eiweis": { "type": "number" },
+    "salz": { "type": "number" },
+    "ballaststoffe": { "type": "number" },
+    "alkohol_vol": { "type": "number" },
+    "zutaten": { "type": "string" },
+    "allergene": { "type": "string" },
+    "jahrgang": {
+      "type": "string",
+      "description": "USER_JJahrgang. 0, \"0\" und leer fehlen im Dokument."
+    },
+    "charakteristik": { "type": "string" },
+    "in_verkehr_bringer": { "type": "string" },
+    "enthalt_sulfite": { "type": "boolean" },
+    "flascheninhalt": { "type": "number" },
+    "herkunftsland": { "type": "string" },
+    "region": { "type": "string" },
+    "verkehrsbezeichnung": { "type": "string" },
     "product_type": {
       "type": "string",
       "description": "Shopify product_type, z. B. Wein, Food, Zubehör."

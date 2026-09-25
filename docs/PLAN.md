@@ -2,9 +2,9 @@
 
 Verbindliche Repo-Kopie des Umsetzungsplans. Chat-Pläne von Cursor liegen außerhalb dieses Git-Workspaces (`C:\Users\ciftci\.cursor\plans\`). Setup-Einstieg: [README.md](../README.md).
 
-Stand: 17. September 2026. Die Shopify-Seite steht. Der Sage-Exporter steht als
-Gerüst unter [tools/sage-export/](../tools/sage-export/README.md); offen sind
-allein die **Feldnamen der WKF-Sage**.
+Stand: 25. September 2026. Die Shopify-Seite steht. Der Sage-Exporter liest die
+WKF-Sage; die HTML-Spalten sind angebunden und im Mandanten leer. Offen ist,
+welcher Teilbestand in welchen Shop gehört.
 
 ## Verständnis
 
@@ -164,18 +164,25 @@ Shop-Verzeichnisse und die Kommandozeile (`check`, `probe`, `export`).
 Deaktivierungen entstehen aus dem Vergleich mit dem vorigen Export, weil Sage
 kein Ereignis „nicht mehr online" kennt.
 
-### Der eine offene Punkt: die Sage-Feldnamen
+### HTML aus Sage (Probe, 25. September 2026)
 
-Die Abfragen in `sage_export/queries.py` enthalten Platzhalter statt geratener
-Spalten, und der Exporter **verweigert den Lauf**, solange einer offen ist.
-`python -m sage_export check` listet sie, `probe` findet sie im Schema.
+`LangtextHTML` und `DimensionstextHTML` sind angebunden. Im Export von
+Mandant 2 sind beide Spalten auf allen Stücklistenzeilen leer, auch am
+Piloten `8240060`. Die Texte stehen damit nicht in Sage, sondern wurden
+bisher oft nur im Shop gepflegt. `nutrition_html` bleibt leer:
+`KHKArtikelVarianten` liefert RTF und NW-Zahlen, kein HTML.
 
-Gebraucht: Sage-Verbindung (DSN/Mandant), die Feldnamen für Titel, Online-Flag
-und Kennzeichnungstext sowie die Regel, welcher Artikel in welchen Shop gehört.
+### Noch offen
+
+Die Probe-Felder sind in den Abfragen. Offen bleibt, welcher Teilbestand in
+welchen Shop gehört: Artikelgruppen filtert die Query nicht, der Export von
+Mandant 2 ist der ganze Stücklistenbestand. Ein Shop-Schreibtest liest nur
+`tools/sage-export/pilot/`, nicht `export/`.
 
 Dabei mit zu klären:
 
-- **Preis.** Der Vertrag (`SetDocument` / `ChildDocument`) hat bewusst noch kein Preisfeld, deshalb stehen Parents im Shop auf 0,00. Aufgenommen wird es erst, wenn feststeht, welches Sage-Feld gilt — zuerst in `contract/`, dann im Exporter. Dann schreibt der Writer den Preis auf die Varianten-SKU.
+- **Preis.** `price` ist `KHKPreislistenArtikel.Einzelpreis` für die `liste_id` in `sage-export.toml` (`AbMenge = 0`). Keine Netto/Brutto-Rechnung, keine Listen-Nummer in der Query. Fehlt die Zeile, fehlt das Feld, der Shop bleibt 0,00. Die App schreibt den Preis auf die Varianten-SKU.
+- **Kind-Metafields.** Nährwerte und Zutaten liegen an `custom.*` des Kindes, nie am Set und nie als `nutrition_html`. Die Storefront bleibt leer, bis das Händler-Theme `custom.*` liest. Das ist kein Sync-Fehler und keine Theme-App-Extension.
 - **Set-Erkennung.** Stücklistentyp und Artikelgruppe, nicht SKU-Präfix (`SET_FILTER`).
 - **Mehrstufige Stücklisten.** Ob Sage überhaupt verschachtelt liefert, ist offen. Der Exporter nimmt standardmäßig die direkten Zeilen; `explode_bom` schaltet die Auflösung mit Mengenmultiplikation ein.
 - **Veröffentlichung.** Erledigt der Händler, wie das Aktivieren. Die App veröffentlicht nicht in Vertriebskanäle und braucht kein `write_publications`.

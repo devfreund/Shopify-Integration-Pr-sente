@@ -17,6 +17,11 @@
       "type": "boolean",
       "description": "Aktiv und für Online vorgesehen. false zieht den Parent im Shop auf Entwurf. Aktivieren tut die App nie."
     },
+    "price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Einzelpreis aus KHKPreislistenArtikel für die liste_id des Shops. Fehlt das Feld, bleibt der Shop bei 0,00."
+    },
     "html": {
       "type": "string",
       "description": "Marketing-HTML aus Sage. Geht unverändert nach descriptionHtml."

@@ -91,7 +91,9 @@ async function upsertChild(writer: ShopWriter, child: ChildDocument) {
     title: child.title,
     productType: child.product_type,
     descriptionHtml: child.html,
+    price: child.price,
   });
+  await writer.writeChildFacts(child, ref);
   if (!child.active) {
     await writer.setDraft(child.sku);
   }
@@ -137,6 +139,7 @@ async function syncSet(
     title: set.title,
     productType: PARENT_TYPE,
     descriptionHtml: set.html,
+    price: set.price,
   });
 
   await writer.writeParentBom({

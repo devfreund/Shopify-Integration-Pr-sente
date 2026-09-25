@@ -19,6 +19,8 @@ mandant = 1
 
 [export]
 root = "export"
+article_groups = ["800"]
+evaluation_groups = [0]
 
 [shops]
 WKF = "{domain}"
@@ -41,14 +43,14 @@ def shop_dir(tmp_path) -> Path:
     return tmp_path / "export" / DOMAIN
 
 
-def test_check_meldet_die_offenen_sage_felder(tmp_path, capsys):
+def test_check_meldet_vollstaendige_abfragen(tmp_path, capsys):
     config = tmp_path / "sage-export.toml"
     config.write_text(CONFIG.format(domain=DOMAIN), encoding="utf-8")
 
     code = main(["--config", str(config), "check"])
 
-    assert code == 1
-    assert "queries.py" in capsys.readouterr().out
+    assert code == 0
+    assert "vollständig" in capsys.readouterr().out
 
 
 def test_trockenlauf_schreibt_nichts(tmp_path, capsys):

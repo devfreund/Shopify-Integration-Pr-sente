@@ -1,22 +1,29 @@
-"""Die Sage-Abfragen — und die offenen Stellen darin.
+"""Die Sage-Abfragen, analog Vinsecco ``SQL_CoreData_Sets_Complete``.
 
-**Dieses Modul ist noch nicht lauffähig.** Jede Stelle, an der die Feldnamen der
-WKF-Sage noch nicht feststehen, steht als Platzhalter ``{{NAME}}`` im SQL.
-``ensure_ready`` bricht ab, solange einer davon offen ist. Ein halb
-konfigurierter Exporter darf nicht gegen die Produktivdaten laufen und schon gar
-nicht geratene Spalten in einen Händler-Shop schreiben.
+Vorbild heißt Struktur übernehmen, nicht das Toolkit kopieren und nicht die
+Vinsecco-Artikelgruppen 80100/880/800 fest einbacken — der nächste Shop hat
+andere Nummernkreise. Artikelgruppen, ``IstVerkaufsartikel``,
+``USER_OnlineFTP`` und ``USER_VarianteAktiv`` gehören in die lokale TOML,
+nicht in diese Query.
 
-Vorgehen zum Schließen der Lücke:
+Belegte Spalten (``probe --columns``, nicht geraten):
 
-1. ``python -m sage_export probe --tables KHKArtikel`` zeigt die Tabellen.
-2. ``python -m sage_export probe --columns KHKArtikel`` zeigt die Spalten.
-3. Platzhalter hier ersetzen, ``python -m sage_export check`` bis es still ist.
+* ``KHKArtikelStueckliste``: ``Stueckliste`` (Parent), ``Element`` (Kind),
+  ``Menge``, ``Sortierung`` (Position).
+* ``KHKArtikel``: ``Bezeichnung1`` (Titel), ``Aktiv`` (-1/0, Bool macht die
+  Pipeline), ``LangtextHTML`` (Marketing), ``DimensionstextHTML``
+  (Kennzeichnung am Parent). Nicht ``Langtext`` / ``LangtextRTF`` / ``Memo``
+  und nicht ``Dimensionstext`` ohne HTML.
+* Filter am Parent: ``Stuecklistentyp = 1``. Kein SKU-Präfix.
 
-Vorlage sind die Vinsecco-Abfragen aus ``Create_CoreDataSets_Complete``. Vorlage
-heißt lesen und übertragen, nicht das Repo kopieren.
+``nutrition_html`` bleibt ``NULL``. ``KHKArtikelVarianten`` hat kein
+HTML-Feld; ``USER_JInhalt`` / ``USER_JInhaltRTF`` und die ``USER_NW*``-Zahlen
+werden nicht zu HTML gefaltet, nicht gejoint und nicht gelayoutet. RTF geht
+nicht in den Shop. ``USER_GastroEmpfehlung`` ebenso nicht.
+``price`` ist ``KHKPreislistenArtikel.Einzelpreis`` für die ``liste_id`` aus der TOML.
 
-Die **Spaltenaliase** sind dagegen verbindlich: ``pipeline.py`` liest die Zeilen
-über diese Namen. Wer sie ändert, ändert beide Seiten.
+``shop_key`` und ``product_type`` bleiben ``NULL``. Ein Shop in der TOML
+reicht; ``USER_Artikeltyp`` ist ein Kurzcode, nicht Wein/Food/Zubehör.
 """
 
 from __future__ import annotations
@@ -29,66 +36,169 @@ PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 CHILD_COLUMNS = ("shop_key", "sku", "title", "active", "product_type", "html")
 SET_COLUMNS = ("shop_key", "parent_sku", "title", "active", "html", "kennzeichnung_html")
 BOM_COLUMNS = ("parent_sku", "sku", "qty", "position", "nutrition_html")
+COMPLETE_COLUMNS = (
+    "shop_key",
+    "parent_sku",
+    "title",
+    "active",
+    "html",
+    "kennzeichnung_html",
+    "price",
+    "sku",
+    "child_title",
+    "child_active",
+    "product_type",
+    "child_html",
+    "child_price",
+    "qty",
+    "position",
+    "nutrition_html",
+)
 
 
 class QueriesNotConfigured(Exception):
     """Es fehlen noch Sage-Feldnamen."""
 
 
+#: Spalten von ``KHKArtikelStueckliste``, die in der Architektur-Blaupause
+#: festgehalten sind: ``Stueckliste`` ist die Artikelnummer des Parents,
+#: ``Element`` die des Kindes, ``Menge`` die Anzahl im Karton.
+BOM_PARENT_COLUMN = "stueckliste.Stueckliste"
+BOM_CHILD_COLUMN = "stueckliste.Element"
+BOM_QTY_COLUMN = "stueckliste.Menge"
+BOM_POSITION_COLUMN = "stueckliste.Sortierung"
+
+#: Eine Zeile pro Stücklistenposition, Parent- und Kind-Stammdaten gejoint.
+#: Das ist das Gegenstück zu Vinseccos ``SQL_CoreData_Sets_Complete``;
+#: ``fetch_rows`` gruppiert danach in Python (ohne pandas).
+SETS_COMPLETE_SQL = f"""
+SELECT
+    CAST(NULL AS nvarchar(64))         AS shop_key,
+    parent.Artikelnummer               AS parent_sku,
+    parent.Bezeichnung1                AS title,
+    parent.Aktiv                       AS active,
+    parent.Artikelgruppe               AS article_group,
+    parent.USER_Auswertungsgruppe      AS evaluation_group,
+    COALESCE(parent.DimensionstextHTML, CAST(parent.Dimensionstext AS nvarchar(max))) AS html,
+    COALESCE(parent.DimensionstextHTML, CAST(parent.Dimensionstext AS nvarchar(max))) AS kennzeichnung_html,
+    parent_preis.Einzelpreis           AS price,
+    {BOM_CHILD_COLUMN}                 AS sku,
+    child.Bezeichnung1                 AS child_title,
+    child.Aktiv                        AS child_active,
+    CAST(NULL AS nvarchar(max))        AS product_type,
+    child.LangtextHTML                 AS child_html,
+    kind_preis.Einzelpreis             AS child_price,
+    variante.USER_NWEnergiekcal        AS brennwert_kcal,
+    variante.USER_NWEnergiekj          AS brennwert_kj,
+    variante.USER_NWKohlenhydrate      AS kohlenhydrate,
+    variante.USER_NWdavonZucker        AS davon_zucker,
+    variante.USER_NWFett               AS fett,
+    variante.USER_NWgesFettsaeuren     AS davon_gesattigte_fettsauren,
+    variante.USER_NWEiweiss            AS eiweis,
+    variante.USER_NWSalz               AS salz,
+    variante.USER_NWBallaststoffe      AS ballaststoffe,
+    variante.USER_JInhalt              AS zutaten,
+    variante.USER_JInhaltSpuren        AS allergene,
+    variante.USER_JJahrgang            AS jahrgang,
+    variante.USER_JAlkGehaltLabel      AS alkohol_vol,
+    variante.USER_JCharakteristik      AS charakteristik,
+    child.USER_InVerkehrBringer        AS in_verkehr_bringer,
+    child.USER_Sulfite                 AS enthalt_sulfite,
+    child.USER_Flascheninhalt          AS flascheninhalt,
+    child.USER_Land                    AS herkunftsland,
+    child.USER_Region                  AS region,
+    child.USER_Verkehrsbezeichnung     AS verkehrsbezeichnung,
+    {BOM_QTY_COLUMN}                   AS qty,
+    {BOM_POSITION_COLUMN}              AS position,
+    CAST(NULL AS nvarchar(max))        AS nutrition_html
+FROM dbo.KHKArtikelStueckliste AS stueckliste
+INNER JOIN dbo.KHKArtikel AS parent
+    ON parent.Mandant = stueckliste.Mandant
+   AND parent.Artikelnummer = {BOM_PARENT_COLUMN}
+INNER JOIN dbo.KHKArtikel AS child
+    ON child.Mandant = stueckliste.Mandant
+   AND child.Artikelnummer = {BOM_CHILD_COLUMN}
+LEFT JOIN dbo.KHKArtikelVarianten AS variante
+    ON variante.Mandant = stueckliste.Mandant
+   AND variante.Artikelnummer = {BOM_CHILD_COLUMN}
+   AND (
+        (stueckliste.AuspraegungID <> 0 AND variante.AuspraegungID = stueckliste.AuspraegungID)
+        OR (stueckliste.AuspraegungID = 0 AND variante.USER_DefaultArtikel = -1)
+   )
+LEFT JOIN dbo.KHKPreislistenArtikel AS parent_preis
+    ON parent_preis.Mandant = stueckliste.Mandant
+   AND parent_preis.Artikelnummer = {BOM_PARENT_COLUMN}
+   AND parent_preis.ListeID = ?
+   AND parent_preis.AbMenge = 0
+   AND parent_preis.AuspraegungID = 0
+LEFT JOIN dbo.KHKPreislistenArtikel AS kind_preis
+    ON kind_preis.Mandant = stueckliste.Mandant
+   AND kind_preis.Artikelnummer = {BOM_CHILD_COLUMN}
+   AND kind_preis.ListeID = ?
+   AND kind_preis.AbMenge = 0
+   AND (
+        (stueckliste.AuspraegungID <> 0 AND kind_preis.AuspraegungID = stueckliste.AuspraegungID)
+        OR (stueckliste.AuspraegungID = 0 AND kind_preis.AuspraegungID = 0)
+   )
+WHERE stueckliste.Mandant = ?
+  AND parent.Stuecklistentyp = 1
+ORDER BY {BOM_PARENT_COLUMN}, {BOM_POSITION_COLUMN}, {BOM_CHILD_COLUMN}
+"""
+
 #: Artikel, die als Stücklisten-Element in einem Shop landen können.
 CHILDREN_SQL = """
 SELECT
-    {{SHOP_KEY_COLUMN}}       AS shop_key,
-    artikel.Artikelnummer     AS sku,
-    {{TITLE_COLUMN}}          AS title,
-    {{ONLINE_FLAG_COLUMN}}    AS active,
-    {{PRODUCT_TYPE_COLUMN}}   AS product_type,
-    {{DESCRIPTION_COLUMN}}    AS html
+    CAST(NULL AS nvarchar(64))      AS shop_key,
+    artikel.Artikelnummer           AS sku,
+    artikel.Bezeichnung1            AS title,
+    artikel.Aktiv                   AS active,
+    CAST(NULL AS nvarchar(max))     AS product_type,
+    artikel.LangtextHTML            AS html,
+    CAST(NULL AS money)             AS price
 FROM dbo.KHKArtikel AS artikel
 WHERE artikel.Mandant = ?
-  AND {{ONLINE_FILTER}}
 ORDER BY artikel.Artikelnummer
 """
 
-#: Verkaufbare Präsent-Sets. Erkennung über Stücklistentyp und Artikelgruppe,
-#: nie über ein SKU-Präfix.
+#: Verkaufbare Präsent-Sets. Erkennung über Stücklistentyp, nie über ein
+#: SKU-Präfix. Artikelgruppen gehören in die lokale Konfiguration, nicht hier.
 SETS_SQL = """
 SELECT
-    {{SHOP_KEY_COLUMN}}          AS shop_key,
-    artikel.Artikelnummer        AS parent_sku,
-    {{TITLE_COLUMN}}             AS title,
-    {{ONLINE_FLAG_COLUMN}}       AS active,
-    {{DESCRIPTION_COLUMN}}       AS html,
-    {{KENNZEICHNUNG_COLUMN}}     AS kennzeichnung_html
+    CAST(NULL AS nvarchar(64))      AS shop_key,
+    artikel.Artikelnummer           AS parent_sku,
+    artikel.Bezeichnung1            AS title,
+    artikel.Aktiv                   AS active,
+    artikel.LangtextHTML            AS html,
+    artikel.DimensionstextHTML      AS kennzeichnung_html,
+    CAST(NULL AS money)             AS price
 FROM dbo.KHKArtikel AS artikel
 WHERE artikel.Mandant = ?
-  AND {{SET_FILTER}}
-  AND {{ONLINE_FILTER}}
+  AND artikel.Stuecklistentyp = 1
 ORDER BY artikel.Artikelnummer
 """
 
-#: Stücklistenzeilen. ``position`` bestimmt die Reihenfolge im Shop; sie ist
-#: Lieferreihenfolge aus Sage, kein Layout der App.
-BOM_SQL = """
+#: Stücklistenzeilen allein. ``nutrition_html`` bleibt NULL: Varianten haben
+#: Klartext/RTF und NW-Zahlen, kein HTML. ``Sortierung`` ist die Position.
+BOM_SQL = f"""
 SELECT
-    stueckliste.Artikelnummer          AS parent_sku,
-    {{BOM_CHILD_COLUMN}}               AS sku,
-    {{BOM_QTY_COLUMN}}                 AS qty,
-    {{BOM_POSITION_COLUMN}}            AS position,
-    {{BOM_NUTRITION_COLUMN}}           AS nutrition_html
+    {BOM_PARENT_COLUMN}             AS parent_sku,
+    {BOM_CHILD_COLUMN}              AS sku,
+    {BOM_QTY_COLUMN}                AS qty,
+    {BOM_POSITION_COLUMN}           AS position,
+    CAST(NULL AS nvarchar(max))     AS nutrition_html
 FROM dbo.KHKArtikelStueckliste AS stueckliste
 WHERE stueckliste.Mandant = ?
-ORDER BY stueckliste.Artikelnummer, {{BOM_POSITION_COLUMN}}
+ORDER BY {BOM_PARENT_COLUMN}, {BOM_POSITION_COLUMN}, {BOM_CHILD_COLUMN}
 """
 
 ALL_QUERIES = {
+    "sets_complete": SETS_COMPLETE_SQL,
     "children": CHILDREN_SQL,
     "sets": SETS_SQL,
     "bom": BOM_SQL,
 }
 
-#: Was hinter jedem Platzhalter zu klären ist. Steht als Klartext im
-#: ``check``-Befehl, damit die offene Liste nicht nur im Plan lebt.
+#: Was hinter einem wieder eingefügten Platzhalter zu klären wäre.
 OPEN_QUESTIONS = {
     "SHOP_KEY_COLUMN": "Woran hängt in Sage, in welchen Shop ein Artikel gehört?",
     "TITLE_COLUMN": "Welches Feld ist der Shop-Titel (Bezeichnung1, Zusatzbezeichnung, ...)?",
@@ -98,8 +208,6 @@ OPEN_QUESTIONS = {
     "DESCRIPTION_COLUMN": "Welches Feld hält das Marketing-HTML?",
     "KENNZEICHNUNG_COLUMN": "Welches Feld hält den fertigen Kennzeichnungsblock der BOM?",
     "SET_FILTER": "Set-Erkennung über Stücklistentyp und Artikelgruppe, nicht über SKU-Präfix.",
-    "BOM_CHILD_COLUMN": "Spalte der Element-Artikelnummer in KHKArtikelStueckliste.",
-    "BOM_QTY_COLUMN": "Spalte der Menge. Muss als Zahl herauskommen, nicht als Text.",
     "BOM_POSITION_COLUMN": "Spalte der Positionsnummer für die Reihenfolge.",
     "BOM_NUTRITION_COLUMN": "Nur falls Sage zeilenweise kennzeichnet. Sonst NULL liefern.",
 }

@@ -37,6 +37,8 @@ class ChildDocument:
     active: bool
     product_type: str | None = None
     html: str | None = None
+    price: Any = None
+    facts: dict[str, Any] = field(default_factory=dict)
 
     @property
     def file_name(self) -> str:
@@ -52,6 +54,10 @@ class ChildDocument:
             document["product_type"] = self.product_type
         if self.html is not None:
             document["html"] = self.html
+        if self.price is not None:
+            document["price"] = normalize_qty(self.price)
+        for key, value in self.facts.items():
+            document[key] = normalize_qty(value) if not isinstance(value, str) else value
         return document
 
 
@@ -63,6 +69,7 @@ class SetDocument:
     components: list[Component]
     html: str | None = None
     kennzeichnung_html: str | None = None
+    price: Any = None
 
     @property
     def file_name(self) -> str:
@@ -78,6 +85,8 @@ class SetDocument:
             document["html"] = self.html
         if self.kennzeichnung_html is not None:
             document["kennzeichnung_html"] = self.kennzeichnung_html
+        if self.price is not None:
+            document["price"] = normalize_qty(self.price)
         document["components"] = [component.to_json() for component in self.components]
         return document
 
